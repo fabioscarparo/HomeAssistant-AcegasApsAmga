@@ -1,0 +1,20 @@
+{
+  "entity": {
+    "sensor": {
+      "data_lettura": {
+        "default": "mdi:calendar-check"
+      },
+      "media_giornaliera": {
+        "default": "mdi:water-sync"
+      },
+      "autolettura": {
+        "default": "mdi:calendar-edit"
+      }
+    }
+  },
+  "services": {
+    "configura_energy_dashboard": {
+      "service": "mdi:lightning-bolt-circle"
+    }
+  }
+}

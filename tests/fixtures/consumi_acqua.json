@@ -1,0 +1,237 @@
+{
+ "list": [
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1790121600000,
+   "usageToDate": 1794355200000,
+   "readType": "ESTIMATED",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 0.0,
+     "percentage": 0.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 0.0,
+   "averageUsage": 0.0,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1787702400000,
+   "usageToDate": 1790035200000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 6.0,
+     "percentage": 100.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 6.0,
+   "averageUsage": 0.21428571428571427,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1785369600000,
+   "usageToDate": 1787616000000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 3.0,
+     "percentage": 100.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 3.0,
+   "averageUsage": 0.1111111111111111,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1782777600000,
+   "usageToDate": 1785283200000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 8.0,
+     "percentage": 100.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 8.0,
+   "averageUsage": 0.26666666666666666,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1780099200000,
+   "usageToDate": 1782691200000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 5.0,
+     "percentage": 100.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 5.0,
+   "averageUsage": 0.16129032258064516,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1777507200000,
+   "usageToDate": 1780012800000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 2.0,
+     "percentage": 100.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 2.0,
+   "averageUsage": 0.06666666666666667,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1774828800000,
+   "usageToDate": 1777420800000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 2.0,
+     "percentage": 100.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 2.0,
+   "averageUsage": 0.06451612903225806,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1771804800000,
+   "usageToDate": 1774742400000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 1.0,
+     "percentage": 100.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 1.0,
+   "averageUsage": 0.02857142857142857,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1769731200000,
+   "usageToDate": 1771718400000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 0.0,
+     "percentage": 0.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 0.0,
+   "averageUsage": 0.0,
+   "unit": null
+  },
+  {
+   "documentId": "0000000000000001",
+   "usageFromDate": 1764201600000,
+   "usageToDate": 1769644800000,
+   "readType": "REAL",
+   "reads": [
+    {
+     "type": "F0",
+     "value": 1.0,
+     "percentage": 100.0,
+     "threshold": null
+    },
+    {
+     "type": "F2",
+     "value": 0,
+     "percentage": 0.0,
+     "threshold": null
+    }
+   ],
+   "totalUsage": 1.0,
+   "averageUsage": 0.015625,
+   "unit": null
+  }
+ ],
+ "hasNext": false,
+ "total": 28.0,
+ "dayAverage": 0.08
+}

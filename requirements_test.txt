@@ -1,0 +1,4 @@
+pytest
+pytest-asyncio
+freezegun
+pytest-homeassistant-custom-component

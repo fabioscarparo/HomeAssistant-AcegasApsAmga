@@ -1,0 +1,136 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Accedi ad AcegasApsAmga",
+        "description": "Usa l'email e la password dei Servizi Online di AcegasApsAmga.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "contratti": {
+        "title": "Scegli i contratti",
+        "description": "Scegli i contratti da seguire. Ogni contratto diventa un dispositivo con la sua serie nella dashboard Energia.",
+        "data": {
+          "contratti": "Contratti"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Accedi di nuovo",
+        "description": "AcegasApsAmga ha rifiutato l'accesso di {email}. Inserisci la password attuale.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "credenziali_non_valide": "AcegasApsAmga ha rifiutato email o password: {messaggio}",
+      "passaggio_inatteso": "Dopo la password AcegasApsAmga chiede un altro passaggio ({messaggio}). Accedi una volta sul sito dei Servizi Online, completa quello che chiede, poi riprova qui.",
+      "impossibile_connettersi": "Impossibile raggiungere AcegasApsAmga. Controlla la connessione a internet.",
+      "risposta_inattesa": "Risposta inattesa da AcegasApsAmga: {messaggio}",
+      "nessuna_scelta": "Scegli almeno un contratto."
+    },
+    "abort": {
+      "already_configured": "Questo account è già configurato.",
+      "nessun_contratto": "L'account non ha contratti acqua. Servizi trovati: {servizi}. Il gas arriverà in una prossima versione.",
+      "account_diverso": "Hai effettuato l'accesso con un altro account AcegasApsAmga.",
+      "reauth_successful": "Accesso aggiornato."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Contratti",
+        "description": "Scegli i contratti da seguire. Togliere un contratto non cancella le statistiche già importate.",
+        "data": {
+          "contratti": "Contratti"
+        }
+      }
+    },
+    "error": {
+      "nessuna_scelta": "Scegli almeno un contratto."
+    },
+    "abort": {
+      "credenziali_non_valide": "AcegasApsAmga ha rifiutato email o password: {messaggio}",
+      "passaggio_inatteso": "AcegasApsAmga chiede un altro passaggio dopo la password ({messaggio}). Completalo sul sito dei Servizi Online.",
+      "impossibile_connettersi": "Impossibile raggiungere AcegasApsAmga. Controlla la connessione a internet.",
+      "risposta_inattesa": "Risposta inattesa da AcegasApsAmga: {messaggio}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "lettura": {
+        "name": "Lettura contatore",
+        "state_attributes": {
+          "giorno": {
+            "name": "Giorno"
+          },
+          "canale": {
+            "name": "Canale"
+          },
+          "contatore": {
+            "name": "Contatore"
+          },
+          "pod": {
+            "name": "POD"
+          },
+          "statistic_id": {
+            "name": "Statistica"
+          },
+          "letture": {
+            "name": "Letture"
+          }
+        }
+      },
+      "data_lettura": {
+        "name": "Data ultima lettura"
+      },
+      "consumo_periodo": {
+        "name": "Consumo ultimo periodo",
+        "state_attributes": {
+          "dal": {
+            "name": "Dal"
+          },
+          "al": {
+            "name": "Al"
+          },
+          "giorni": {
+            "name": "Giorni"
+          },
+          "periodi": {
+            "name": "Periodi"
+          }
+        }
+      },
+      "media_giornaliera": {
+        "name": "Consumo medio giornaliero"
+      },
+      "autolettura": {
+        "name": "Prossima autolettura",
+        "state_attributes": {
+          "fine": {
+            "name": "Fine"
+          },
+          "aperta": {
+            "name": "Aperta"
+          }
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "accesso_rifiutato": {
+      "message": "AcegasApsAmga ha rifiutato l'accesso: {messaggio}"
+    },
+    "nessuna_configurazione": {
+      "message": "Nessuna configurazione AcegasApsAmga attiva."
+    }
+  },
+  "services": {
+    "configura_energy_dashboard": {
+      "name": "Configura dashboard Energia",
+      "description": "Aggiunge alla dashboard Energia il consumo d'acqua di ogni contratto configurato. Le sorgenti già presenti restano come sono, quindi puoi rilanciarla dopo aver aggiunto un contratto."
+    }
+  }
+}

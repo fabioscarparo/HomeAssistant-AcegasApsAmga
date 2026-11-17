@@ -1,0 +1,136 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sign in to AcegasApsAmga",
+        "description": "Use the email and password of the AcegasApsAmga Servizi Online.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "contratti": {
+        "title": "Choose the contracts",
+        "description": "Choose the contracts to follow. Each contract becomes a device with its own series in the Energy dashboard.",
+        "data": {
+          "contratti": "Contracts"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in again",
+        "description": "AcegasApsAmga rejected the sign-in of {email}. Enter the current password.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "credenziali_non_valide": "AcegasApsAmga rejected the email or password: {messaggio}",
+      "passaggio_inatteso": "After the password AcegasApsAmga asks for another step ({messaggio}). Sign in once on the Servizi Online website, complete what it asks, then try again here.",
+      "impossibile_connettersi": "Cannot reach AcegasApsAmga. Check the internet connection.",
+      "risposta_inattesa": "Unexpected answer from AcegasApsAmga: {messaggio}",
+      "nessuna_scelta": "Choose at least one contract."
+    },
+    "abort": {
+      "already_configured": "This account is already configured.",
+      "nessun_contratto": "The account has no water contract. Services found: {servizi}. Gas will come in a future version.",
+      "account_diverso": "You signed in with a different AcegasApsAmga account.",
+      "reauth_successful": "Sign-in updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Contracts",
+        "description": "Choose the contracts to follow. Removing a contract keeps the statistics already imported.",
+        "data": {
+          "contratti": "Contracts"
+        }
+      }
+    },
+    "error": {
+      "nessuna_scelta": "Choose at least one contract."
+    },
+    "abort": {
+      "credenziali_non_valide": "AcegasApsAmga rejected the email or password: {messaggio}",
+      "passaggio_inatteso": "AcegasApsAmga asks for another step after the password ({messaggio}). Complete it on the Servizi Online website.",
+      "impossibile_connettersi": "Cannot reach AcegasApsAmga. Check the internet connection.",
+      "risposta_inattesa": "Unexpected answer from AcegasApsAmga: {messaggio}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "lettura": {
+        "name": "Meter reading",
+        "state_attributes": {
+          "giorno": {
+            "name": "Day"
+          },
+          "canale": {
+            "name": "Channel"
+          },
+          "contatore": {
+            "name": "Meter"
+          },
+          "pod": {
+            "name": "POD"
+          },
+          "statistic_id": {
+            "name": "Statistic"
+          },
+          "letture": {
+            "name": "Readings"
+          }
+        }
+      },
+      "data_lettura": {
+        "name": "Last reading date"
+      },
+      "consumo_periodo": {
+        "name": "Last period consumption",
+        "state_attributes": {
+          "dal": {
+            "name": "From"
+          },
+          "al": {
+            "name": "To"
+          },
+          "giorni": {
+            "name": "Days"
+          },
+          "periodi": {
+            "name": "Periods"
+          }
+        }
+      },
+      "media_giornaliera": {
+        "name": "Average daily consumption"
+      },
+      "autolettura": {
+        "name": "Next self-reading",
+        "state_attributes": {
+          "fine": {
+            "name": "End"
+          },
+          "aperta": {
+            "name": "Open"
+          }
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "accesso_rifiutato": {
+      "message": "AcegasApsAmga rejected the sign-in: {messaggio}"
+    },
+    "nessuna_configurazione": {
+      "message": "No AcegasApsAmga setup is loaded."
+    }
+  },
+  "services": {
+    "configura_energy_dashboard": {
+      "name": "Configure Energy dashboard",
+      "description": "Adds the water consumption of every configured contract to the Energy dashboard. Existing sources are left as they are, so it is safe to run again after adding a contract."
+    }
+  }
+}

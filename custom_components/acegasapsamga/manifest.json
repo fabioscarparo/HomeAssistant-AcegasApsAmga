@@ -1,0 +1,20 @@
+{
+  "domain": "acegasapsamga",
+  "name": "AcegasApsAmga",
+  "after_dependencies": [
+    "energy",
+    "frontend",
+    "http",
+    "recorder"
+  ],
+  "codeowners": [
+    "@fabioscarparo"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/fabioscarparo/HomeAssistant-AcegasApsAmga",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/fabioscarparo/HomeAssistant-AcegasApsAmga/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,40 @@
+{
+ "list": [
+  {
+   "id": "1000000001",
+   "requestId": null,
+   "groupingCode": "200000000001",
+   "status": "ACTIVE",
+   "serviceType": "WATER",
+   "environmentServices": [],
+   "activationDate": 1764201600000,
+   "deactivationDate": 4070908800000,
+   "commercialOffer": "",
+   "usage": "1101-Domestico",
+   "systemType": "HOME",
+   "supplyAddress": "VIA DI ESEMPIO 1, TRIESTE TS, 34100 Italia",
+   "city": "TRIESTE",
+   "meters": [
+    {
+     "id": "MATRICOLA0001",
+     "address": "VIA DI ESEMPIO 1 - 34100 TRIESTE",
+     "service": "WATER",
+     "installationDate": 1764201600000,
+     "selfReadingAvailable": true,
+     "status": "ACTIVE",
+     "power": "",
+     "unit": "mc",
+     "caliber": "A1302",
+     "phase": "Cont.acqDN20volumL190MIDNB-IoT",
+     "pod": "0500000000000001",
+     "type": "MONO"
+    }
+   ],
+   "market": "PROTECTED",
+   "pod": "0500000000000001",
+   "sfdcMarket": "Regolamentato"
+  }
+ ],
+ "hasNext": false,
+ "brand": null
+}

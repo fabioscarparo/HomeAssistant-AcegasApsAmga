@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local environment and credentials
+.env
+
+# Output of scripts/verifica_accesso.py: real, personal data
+verifica_*.json
+
+# Local Home Assistant used to try the integration
+.ha-dev/
+.claude/
+
+# Local tools (README image rendering) and the social preview, uploaded by hand
+tools/
+docs/images/social-preview.png

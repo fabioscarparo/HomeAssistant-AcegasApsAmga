@@ -1,0 +1,14 @@
+{
+ "list": [
+  {
+   "id": "PROFILO0001",
+   "csn": "0000000001",
+   "type": "CASA",
+   "soapType": "FAMIGLIE",
+   "firstName": "MARIO",
+   "lastName": "ROSSI",
+   "isDefault": false
+  }
+ ],
+ "hasNext": false
+}
