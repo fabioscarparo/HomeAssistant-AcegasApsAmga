@@ -9,6 +9,25 @@
       },
       "autolettura": {
         "default": "mdi:calendar-edit"
+      },
+      "bolletta": {
+        "default": "mdi:receipt-text"
+      },
+      "da_pagare": {
+        "default": "mdi:cash-clock"
+      },
+      "scadenza_bolletta": {
+        "default": "mdi:calendar-clock"
+      },
+      "stato_bolletta": {
+        "default": "mdi:receipt-text",
+        "state": {
+          "unpaid": "mdi:receipt-text-clock",
+          "expired": "mdi:receipt-text-remove",
+          "paid_partial": "mdi:receipt-text-minus",
+          "paid": "mdi:receipt-text-check",
+          "reversed": "mdi:receipt-text-arrow-left"
+        }
       }
     }
   },

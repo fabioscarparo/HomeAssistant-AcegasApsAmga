@@ -40,6 +40,19 @@ Daily readings (`v2/.../usage` with `pdr`, `fromDate`, `toDate`) exist only
 for profiles enabled to them: a household water profile gets "Profile Z001
 not allowed for daily reads", so the integration uses the read archive.
 
+### Bills
+
+Bills come from `profile/{id}/bill/list`, with `groupBy` set to the profile's
+`billGroupType` (read once from `profile/{id}`), as the portal's Bills page
+does. The web app also calls a second host, `myhera.gruppohera.it`, with an
+extra token: it is not needed. `bollette.py` keeps only number, dates,
+amounts, status, direct debit and contracts, so the store holds no names,
+addresses or bank details.
+
+A bill has no billing period, and the `documentId` of the billing periods
+always points to the latest bill: amounts cannot be spread over the
+consumption, which is why there is no cost series.
+
 ### From readings to statistics
 
 The rules are at the top of `letture.py`. In short: real readings only, a
@@ -68,7 +81,8 @@ python3 -m venv .venv
 ```
 
 The script asks for email and password, signs in like the integration and
-prints contracts, readings and the series the Energy Dashboard would get.
+prints contracts, readings, the series the Energy Dashboard would get and the
+bills.
 With `--salva` it also saves the raw answers to `verifica_*.json`: they
 contain personal data, never commit them.
 

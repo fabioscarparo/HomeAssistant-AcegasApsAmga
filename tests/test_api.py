@@ -69,3 +69,24 @@ async def test_rete():
     with pytest.raises(api.ApiError) as errore:
         await api.ApiClient(sessione, "T").async_profili()
     assert errore.value.rete
+
+
+async def test_bollette_con_raggruppamento_del_profilo():
+    sessione = SessioneFinta()
+    sessione.aggiungi(
+        "GET", f"{API_BASE_URL}/profile/P/bill/list", RispostaFinta(200, carica("bollette.json"))
+    )
+    sessione.aggiungi(
+        "GET",
+        f"{API_BASE_URL}/profile/P",
+        RispostaFinta(200, {"billGroupType": "PLICO", "fiscalCode": "XXXXXX00X00X000X"}),
+    )
+    client = api.ApiClient(sessione, "T")
+
+    assert await client.async_raggruppamento_bollette("P") == "PLICO"
+    bollette = await client.async_bollette("P", "PLICO")
+
+    assert len(bollette) == 3
+    parametri = dict(sessione.richieste[1]["params"])
+    assert parametri["groupBy"] == "PLICO"
+    assert parametri["pageNumber"] == "0"

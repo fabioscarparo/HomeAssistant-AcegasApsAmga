@@ -30,7 +30,10 @@ class PortaleFinto:
 
     def __init__(self):
         self.archivio = carica("archivio_acqua.json")["list"]
+        self.bollette = carica("bollette.json")["list"]
         self.errore_api: Exception | None = None
+        self.errore_bollette: Exception | None = None
+        self.raggruppamenti = 0
         self.errore_login: Exception | None = None
         self.accessi = 0
         self.access_token = ""
@@ -54,6 +57,16 @@ class PortaleFinto:
 
     async def async_finestra_autolettura(self, profilo, contratto):
         return carica("finestra.json")
+
+    async def async_raggruppamento_bollette(self, profilo):
+        self.raggruppamenti += 1
+        return "PLICO"
+
+    async def async_bollette(self, profilo, raggruppamento):
+        assert raggruppamento == "PLICO"
+        if self.errore_bollette:
+            raise self.errore_bollette
+        return self.bollette
 
 
 @pytest.fixture
@@ -110,6 +123,47 @@ async def test_setup_scrive_statistiche_e_sensori(
     assert autolettura.state == "2027-02-28"
     assert autolettura.attributes["fine"] == "2027-03-05"
 
+    bolletta = _stato(hass, "bolletta")
+    assert bolletta.state == "48.2"
+    assert bolletta.attributes["unit_of_measurement"] == "EUR"
+    assert bolletta.attributes["device_class"] == "monetary"
+    assert bolletta.attributes["numero"] == "0000000000000103"
+    assert bolletta.attributes["emissione"] == "2026-11-13"
+    assert bolletta.attributes["scadenza"] == "2026-12-09"
+    assert bolletta.attributes["domiciliata"] is True
+    assert [b["stato"] for b in bolletta.attributes["bollette"]] == ["unpaid", "paid", "paid"]
+    assert _stato(hass, "da_pagare").state == "48.2"
+    assert _stato(hass, "scadenza_bolletta").state == "2026-12-09"
+    stato = _stato(hass, "stato_bolletta")
+    assert stato.state == "unpaid"
+    assert "other" in stato.attributes["options"]
+
+
+async def test_bollette_pagate_e_errori(
+    recorder_mock, hass, entry: MockConfigEntry, portale, freezer
+):
+    freezer.move_to(ADESSO)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # The bill is paid: nothing due and no due date.
+    portale.bollette = [dict(portale.bollette[0], paymentStatus="PAID", residual=0.0), *portale.bollette[1:]]
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    assert _stato(hass, "stato_bolletta").state == "paid"
+    assert _stato(hass, "da_pagare").state == "0.0"
+    assert _stato(hass, "scadenza_bolletta").state == "unknown"
+
+    # Bills that cannot be read leave the readings alone and keep the last ones.
+    portale.errore_bollette = ApiError("down", status=503)
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    assert entry.runtime_data.last_update_success
+    assert _stato(hass, "stato_bolletta").state == "paid"
+    assert _stato(hass, "bolletta").state == "48.2"
+    # The grouping of the bills is read once.
+    assert portale.raggruppamenti == 1
+
 
 async def test_senza_novita_non_riscrive(
     recorder_mock, hass, entry: MockConfigEntry, portale, freezer
@@ -149,6 +203,7 @@ async def test_dati_salvati_se_il_portale_non_risponde(
 
     assert entry.state is ConfigEntryState.LOADED
     assert _stato(hass, "lettura").state == "28.0"
+    assert _stato(hass, "bolletta").state == "48.2"
     assert entry.runtime_data.update_interval == coord.INTERVALLO_DOPO_ERRORE
 
 

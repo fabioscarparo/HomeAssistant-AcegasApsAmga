@@ -1,8 +1,9 @@
 """Coordinator: downloads the data of each contract and writes the statistics.
 
-For each contract it reads the whole archive, the billing periods and the
-self-reading window. Readings are kept in the integration's store, so the
-sensors have values right after a restart and while the portal is down.
+For each contract it reads the whole archive, the billing periods, the
+self-reading window and the bills. Everything is kept in the integration's
+store, so the sensors have values right after a restart and while the portal
+is down.
 
 Tokens stay in memory: when they expire the coordinator logs in again with
 the stored email and password.
@@ -25,6 +26,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from . import bollette as bl
 from . import letture as lt
 from .api import ApiClient, ApiError, TokenScaduto
 from .auth import (
@@ -53,12 +55,14 @@ class DatiContratto:
     letture: list[lt.Lettura] = field(default_factory=list)
     consumi: list[dict[str, Any]] = field(default_factory=list)
     finestra: dict[str, Any] | None = None
+    bollette: list[bl.Bolletta] = field(default_factory=list)
 
     def come_dict(self) -> dict[str, Any]:
         return {
             "letture": [lettura.come_dict() for lettura in self.letture],
             "consumi": self.consumi,
             "finestra": self.finestra,
+            "bollette": [bolletta.come_dict() for bolletta in self.bollette],
         }
 
     @classmethod
@@ -69,10 +73,17 @@ class DatiContratto:
                 letture.append(lt.Lettura.da_dict(grezza))
             except (KeyError, TypeError, ValueError):
                 _LOGGER.debug("Lettura salvata non valida, ignorata: %r", grezza)
+        bollette = []
+        for grezza in dati.get("bollette") or []:
+            try:
+                bollette.append(bl.Bolletta.da_dict(grezza))
+            except (KeyError, TypeError, ValueError):
+                _LOGGER.debug("Bolletta salvata non valida, ignorata: %r", grezza)
         return cls(
             letture=lt.ordina(letture),
             consumi=list(dati.get("consumi") or []),
             finestra=dati.get("finestra"),
+            bollette=bl.ordina(bollette),
         )
 
 
@@ -141,6 +152,8 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
             hass, VERSIONE_STORE, f"{DOMAIN}.{entry.entry_id}"
         )
         self._firme: dict[str, str] = {}
+        # billGroupType of each profile: it does not change, one call is enough.
+        self._raggruppamenti: dict[str, str | None] = {}
         # Shown in the diagnostics.
         self.ultimo_accesso: str | None = None
         self.ultimo_errore: str | None = None
@@ -235,8 +248,15 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
         precedenti = self.data or {}
         try:
             await self._async_assicura_token()
+            # Bills belong to the profile: one call for all its contracts.
+            bollette = {
+                profilo: await self._async_bollette(profilo)
+                for profilo in dict.fromkeys(c["profilo"] for c in self.contratti)
+            }
             dati = {
-                c["contratto"]: await self._async_aggiorna_contratto(c, precedenti.get(c["contratto"]))
+                c["contratto"]: await self._async_aggiorna_contratto(
+                    c, precedenti.get(c["contratto"]), bollette[c["profilo"]]
+                )
                 for c in self.contratti
             }
         except (ApiError, UpdateFailed) as err:
@@ -258,8 +278,27 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
         await self._async_salva(dati)
         return dati
 
+    async def _async_bollette(self, profilo: str) -> list[bl.Bolletta] | None:
+        """Bills of a profile, or None if they cannot be read: then each
+        contract keeps the ones it had."""
+        try:
+            if profilo not in self._raggruppamenti:
+                self._raggruppamenti[profilo] = await self._chiama(
+                    self._api.async_raggruppamento_bollette, profilo
+                )
+            grezze = await self._chiama(self._api.async_bollette, profilo, self._raggruppamenti[profilo])
+        except TokenScaduto:
+            raise
+        except ApiError as err:
+            _LOGGER.debug("Profilo %s: bollette non disponibili (%s)", profilo, err)
+            return None
+        return bl.estrai_bollette(grezze)
+
     async def _async_aggiorna_contratto(
-        self, contratto: dict[str, Any], precedenti: DatiContratto | None
+        self,
+        contratto: dict[str, Any],
+        precedenti: DatiContratto | None,
+        bollette: list[bl.Bolletta] | None = None,
     ) -> DatiContratto:
         profilo, numero = contratto["profilo"], contratto["contratto"]
         precedenti = precedenti or DatiContratto()
@@ -276,6 +315,9 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
             letture=lt.unisci(precedenti.letture, nuove),
             consumi=precedenti.consumi,
             finestra=precedenti.finestra,
+            bollette=(
+                bl.del_contratto(bollette, numero) if bollette is not None else precedenti.bollette
+            ),
         )
 
         # Billing periods and self-reading window are extras: if they fail,

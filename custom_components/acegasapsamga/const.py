@@ -60,3 +60,5 @@ INTERVALLO_AGGIORNAMENTO_ORE = 6
 # about three years of monthly readings, two years of periods.
 MAX_LETTURE_ATTRIBUTO = 36
 MAX_PERIODI_ATTRIBUTO = 24
+# Bills listed in the last bill sensor: about four years.
+MAX_BOLLETTE_ATTRIBUTO = 12

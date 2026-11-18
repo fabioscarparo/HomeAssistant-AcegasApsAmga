@@ -1,7 +1,8 @@
 """Diagnostics for bug reports.
 
 Safe to attach to a public issue: no email, password or token, and contract,
-supply point, meter and profile codes become CONTRATTO_1, POD_1...
+supply point, meter, profile and bill numbers become CONTRATTO_1, POD_1,
+BOLLETTA_1...
 """
 from __future__ import annotations
 
@@ -63,7 +64,13 @@ async def async_get_config_entry_diagnostics(
             ),
         },
     }
+    sostituzioni = _sostituzioni(contratti)
     if coordinator is not None:
+        numeri = dict.fromkeys(
+            b.numero for dati in (coordinator.data or {}).values() for b in dati.bollette
+        )
+        for indice, numero in enumerate(numeri, start=1):
+            sostituzioni.setdefault(numero, f"BOLLETTA_{indice}")
         diagnostica["coordinator"] = {
             "ultimo_aggiornamento_riuscito": coordinator.last_update_success,
             "intervallo": str(coordinator.update_interval),
@@ -74,4 +81,4 @@ async def async_get_config_entry_diagnostics(
                 numero: dati.come_dict() for numero, dati in (coordinator.data or {}).items()
             },
         }
-    return _anonimizza(diagnostica, _sostituzioni(contratti))
+    return _anonimizza(diagnostica, sostituzioni)

@@ -52,6 +52,15 @@ async def test_diagnostica_senza_dati_personali(recorder_mock, hass, entry, port
     await hass.async_block_till_done()
 
     testo = json.dumps(await async_get_config_entry_diagnostics(hass, entry))
-    for dato in ("utente@example.com", "segreta", "1000000001", "0500000000000001", "MATRICOLA0001", "VIA DI ESEMPIO"):
+    for dato in (
+        "utente@example.com",
+        "segreta",
+        "1000000001",
+        "0500000000000001",
+        "MATRICOLA0001",
+        "VIA DI ESEMPIO",
+        "0000000000000103",
+    ):
         assert dato not in testo
     assert "CONTRATTO_1" in testo
+    assert "BOLLETTA_1" in testo

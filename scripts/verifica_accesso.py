@@ -4,8 +4,9 @@
 
 Asks for email and password, logs in like the integration, lists the
 contracts and, for each water contract, the readings and the series the
-Energy Dashboard would get. Nothing is saved unless you pass --salva: then
-the raw answers go to verifica_*.json (personal data, never commit them).
+Energy Dashboard would get, then the bills of each profile. Nothing is saved
+unless you pass --salva: then the raw answers go to verifica_*.json
+(personal data, never commit them).
 
 Needs only aiohttp.
 """
@@ -33,16 +34,16 @@ def _carica_moduli():
     pacchetto.__path__ = [str(PACCHETTO)]
     sys.modules[nome] = pacchetto
     moduli = {}
-    for modulo in ("const", "auth", "api", "letture"):
+    for modulo in ("const", "auth", "api", "letture", "bollette"):
         spec = importlib.util.spec_from_file_location(f"{nome}.{modulo}", PACCHETTO / f"{modulo}.py")
         moduli[modulo] = importlib.util.module_from_spec(spec)
         sys.modules[f"{nome}.{modulo}"] = moduli[modulo]
         spec.loader.exec_module(moduli[modulo])
-    return moduli["auth"], moduli["api"], moduli["letture"]
+    return moduli["auth"], moduli["api"], moduli["letture"], moduli["bollette"]
 
 
 async def main(salva: bool) -> int:
-    auth, api, lt = _carica_moduli()
+    auth, api, lt, bl = _carica_moduli()
     email = input("Email dei Servizi Online: ").strip()
     password = getpass.getpass("Password: ")
 
@@ -95,6 +96,25 @@ async def main(salva: bool) -> int:
                     "consumi": await client.async_consumi(profilo, contratto["contratto"]),
                     "finestra": await client.async_finestra_autolettura(profilo, contratto["contratto"]),
                 }, indent=1, ensure_ascii=False))
+                print(f"  Risposte salvate in {file} (dati personali: non condividerle)")
+
+        for indice, profilo in enumerate(dict.fromkeys(p for p, _ in contratti), start=1):
+            try:
+                raggruppamento = await client.async_raggruppamento_bollette(profilo)
+                grezze = await client.async_bollette(profilo, raggruppamento)
+            except api.ApiError as err:
+                print(f"\nBollette del profilo {indice} non disponibili: {err}")
+                continue
+            bollette = bl.estrai_bollette(grezze)
+            print(f"\nBollette del profilo {indice} (raggruppate per {raggruppamento}): {len(bollette)}")
+            for b in bollette:
+                print(f"    {b.numero}  emessa {b.emissione}  scade {b.scadenza}  {b.importo:>8.2f} €  "
+                      f"residuo {b.residuo:.2f} €  {b.stato}{'  domiciliata' if b.domiciliata else ''}")
+            print(f"  Da pagare: {bl.totale_da_pagare(bollette):.2f} €, "
+                  f"prossima scadenza: {bl.prossima_scadenza(bollette) or 'nessuna'}")
+            if salva:
+                file = Path(f"verifica_bollette_{indice}.json")
+                file.write_text(json.dumps(grezze, indent=1, ensure_ascii=False))
                 print(f"  Risposte salvate in {file} (dati personali: non condividerle)")
     return 0
 

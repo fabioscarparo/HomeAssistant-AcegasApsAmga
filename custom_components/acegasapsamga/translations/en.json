@@ -116,6 +116,48 @@
             "name": "Open"
           }
         }
+      },
+      "bolletta": {
+        "name": "Last bill",
+        "state_attributes": {
+          "numero": {
+            "name": "Number"
+          },
+          "emissione": {
+            "name": "Issued"
+          },
+          "scadenza": {
+            "name": "Due"
+          },
+          "residuo": {
+            "name": "Left to pay"
+          },
+          "domiciliata": {
+            "name": "Direct debit"
+          },
+          "bollette": {
+            "name": "Bills"
+          }
+        }
+      },
+      "da_pagare": {
+        "name": "Amount due"
+      },
+      "scadenza_bolletta": {
+        "name": "Bill due date"
+      },
+      "stato_bolletta": {
+        "name": "Last bill status",
+        "state": {
+          "unpaid": "Unpaid",
+          "expired": "Overdue",
+          "paid_partial": "Partly paid",
+          "paid": "Paid",
+          "not_to_pay": "Nothing to pay",
+          "credit": "Credit",
+          "reversed": "Reversed",
+          "other": "Other"
+        }
       }
     }
   },

@@ -116,6 +116,48 @@
             "name": "Aperta"
           }
         }
+      },
+      "bolletta": {
+        "name": "Ultima bolletta",
+        "state_attributes": {
+          "numero": {
+            "name": "Numero"
+          },
+          "emissione": {
+            "name": "Emissione"
+          },
+          "scadenza": {
+            "name": "Scadenza"
+          },
+          "residuo": {
+            "name": "Da pagare"
+          },
+          "domiciliata": {
+            "name": "Domiciliata"
+          },
+          "bollette": {
+            "name": "Bollette"
+          }
+        }
+      },
+      "da_pagare": {
+        "name": "Da pagare"
+      },
+      "scadenza_bolletta": {
+        "name": "Scadenza bolletta"
+      },
+      "stato_bolletta": {
+        "name": "Stato ultima bolletta",
+        "state": {
+          "unpaid": "Da pagare",
+          "expired": "Scaduta",
+          "paid_partial": "Pagata in parte",
+          "paid": "Pagata",
+          "not_to_pay": "Niente da pagare",
+          "credit": "A credito",
+          "reversed": "Stornata",
+          "other": "Altro"
+        }
       }
     }
   },

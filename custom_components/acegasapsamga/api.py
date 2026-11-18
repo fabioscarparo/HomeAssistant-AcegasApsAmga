@@ -130,6 +130,18 @@ class ApiClient:
         corpo = await self._get(f"profile/{profilo}/read/timeframe/{contratto}")
         return corpo if isinstance(corpo, dict) else None
 
+    async def async_raggruppamento_bollette(self, profilo: str) -> str | None:
+        """How the profile's bills are grouped (billGroupType). The rest of
+        the profile is personal data and is not returned."""
+        corpo = await self._get(f"profile/{profilo}")
+        valore = corpo.get("billGroupType") if isinstance(corpo, dict) else None
+        return str(valore) if valore else None
+
+    async def async_bollette(self, profilo: str, raggruppamento: str | None) -> list[dict]:
+        """Bills of a profile, with the same grouping as the portal's page."""
+        parametri = [("groupBy", raggruppamento)] if raggruppamento else None
+        return await self._lista_paginata(f"profile/{profilo}/bill/list", parametri)
+
 
 def contratto_da_api(profilo: str, contratto: dict) -> dict:
     """What the config entry keeps of a contract: the ids for the API calls

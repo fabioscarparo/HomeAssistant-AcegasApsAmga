@@ -3,6 +3,8 @@
 Consumption for the Energy Dashboard lives in the external statistics. These
 sensors have no state_class on purpose: otherwise Home Assistant would build a
 second series, with a whole month on the hour the reading was downloaded.
+
+Bill sensors show the whole bill, even when it groups several contracts.
 """
 from __future__ import annotations
 
@@ -17,9 +19,11 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import bollette as bl
 from . import letture as lt
 from .const import (
     DOMAIN,
+    MAX_BOLLETTE_ATTRIBUTO,
     MAX_LETTURE_ATTRIBUTO,
     MAX_PERIODI_ATTRIBUTO,
     NOME_INTEGRAZIONE,
@@ -45,6 +49,10 @@ async def async_setup_entry(
             ConsumoPeriodoSensor,
             MediaGiornalieraSensor,
             AutoletturaSensor,
+            BollettaSensor,
+            DaPagareSensor,
+            ScadenzaBollettaSensor,
+            StatoBollettaSensor,
         )
     )
 
@@ -223,3 +231,86 @@ class AutoletturaSensor(_SensoreContratto):
     def extra_state_attributes(self) -> dict[str, Any]:
         finestra = self._finestra or {}
         return {"fine": finestra.get("fine"), "aperta": finestra.get("aperta")}
+
+
+class _SensoreBollette(_SensoreContratto):
+    @property
+    def _bollette(self) -> list[bl.Bolletta]:
+        return self._dati.bollette if self._dati else []
+
+    @property
+    def _ultima(self) -> bl.Bolletta | None:
+        return self._bollette[0] if self._bollette else None
+
+
+class BollettaSensor(_SensoreBollette):
+    """Amount of the newest bill. 'bollette' lists the latest bills and is
+    not recorded."""
+
+    chiave = "bolletta"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
+    _unrecorded_attributes = frozenset({"bollette"})
+
+    @property
+    def native_value(self) -> float | None:
+        return self._ultima.importo if self._ultima else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        ultima = self._ultima
+        return {
+            "numero": ultima.numero if ultima else None,
+            "emissione": ultima.emissione.isoformat() if ultima else None,
+            "scadenza": ultima.scadenza.isoformat() if ultima and ultima.scadenza else None,
+            "residuo": ultima.residuo if ultima else None,
+            "domiciliata": ultima.domiciliata if ultima else None,
+            "bollette": [
+                {
+                    "numero": b.numero,
+                    "emissione": b.emissione.isoformat(),
+                    "scadenza": b.scadenza.isoformat() if b.scadenza else None,
+                    "importo": b.importo,
+                    "residuo": b.residuo,
+                    "stato": b.stato,
+                }
+                for b in self._bollette[:MAX_BOLLETTE_ATTRIBUTO]
+            ],
+        }
+
+
+class DaPagareSensor(_SensoreBollette):
+    """What is left to pay on the bills not paid yet, direct debits included."""
+
+    chiave = "da_pagare"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_suggested_display_precision = 2
+
+    @property
+    def native_value(self) -> float | None:
+        return bl.totale_da_pagare(self._bollette) if self._bollette else None
+
+
+class ScadenzaBollettaSensor(_SensoreBollette):
+    """Earliest due date of the bills still to pay; unknown when nothing is due."""
+
+    chiave = "scadenza_bolletta"
+    _attr_device_class = SensorDeviceClass.DATE
+
+    @property
+    def native_value(self) -> date | None:
+        return bl.prossima_scadenza(self._bollette)
+
+
+class StatoBollettaSensor(_SensoreBollette):
+    """Payment status of the newest bill."""
+
+    chiave = "stato_bolletta"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = bl.OPZIONI_STATO
+
+    @property
+    def native_value(self) -> str | None:
+        return self._ultima.stato if self._ultima else None

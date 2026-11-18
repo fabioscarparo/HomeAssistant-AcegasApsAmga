@@ -34,7 +34,12 @@ def test_la_card_usa_le_chiavi_dei_sensori():
     # The card finds the sensors by translation_key: the names must match sensor.py.
     from custom_components.acegasapsamga import sensor
 
-    chiavi_sensori = {c.chiave for c in sensor._SensoreContratto.__subclasses__()}
+    def sottoclassi(classe):
+        for figlia in classe.__subclasses__():
+            yield figlia
+            yield from sottoclassi(figlia)
+
+    chiavi_sensori = {c.chiave for c in sottoclassi(sensor._SensoreContratto) if hasattr(c, "chiave")}
     for chiave in ("lettura", "consumo_periodo", "media_giornaliera"):
         assert chiave in chiavi_sensori
         assert f'"{chiave}"' in CONTENUTO

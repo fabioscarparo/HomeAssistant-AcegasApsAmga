@@ -8,7 +8,7 @@
 
 <p align="center">
   <strong>Your AcegasApsAmga water consumption in Home Assistant:<br>
-  the whole reading history, the Energy Dashboard and a meter card.</strong>
+  the whole reading history, the Energy Dashboard, your bills and a meter card.</strong>
 </p>
 
 <p align="center">
@@ -21,13 +21,16 @@
 A custom [Home Assistant](https://www.home-assistant.io/) integration for
 **AcegasApsAmga**, the Gruppo Hera utility of North-East Italy. It reads your
 water meter readings from the **Servizi Online** portal and imports them as
-long-term statistics, ready for the Energy Dashboard.
+long-term statistics, ready for the Energy Dashboard. It also follows your
+bills.
 
 - **Energy Dashboard**: water consumption added with a single action.
 - **Whole history**: every reading since the start of the contract, imported
   at setup.
 - **Sensors**: meter reading, last period consumption, average daily
   consumption and next self-reading window.
+- **Bills**: amount of the last bill, amount due, due date and payment
+  status, ready for a reminder automation.
 - **Meter card**: average daily consumption of each reading period, monthly
   consumption and the year's totals.
 - **Automatic updates**: new readings and corrections are picked up on their
@@ -136,7 +139,8 @@ has data.
 
 > [!NOTE]
 > Costs are not supported yet: Home Assistant does not accept a price per m³
-> on imported statistics.
+> on imported statistics, and bills do not say which days of consumption they
+> cover.
 
 ## Sensors
 
@@ -149,9 +153,17 @@ Each contract is a device with these sensors:
 | **Last period consumption** | m³ from the day after the previous real reading to the day of the last one |
 | **Average daily consumption** | Litres a day in that period |
 | **Next self-reading** | First day of the next window to send a self-reading; the last day is in the attributes |
+| **Last bill** | Amount of the newest bill, in €; number, issue date, due date and the latest bills in the attributes |
+| **Amount due** | What is left to pay on the bills not paid yet |
+| **Bill due date** | Earliest due date of the bills still to pay; unknown when nothing is due |
+| **Last bill status** | Unpaid, overdue, partly paid, paid... |
 
-They have no state class on purpose: the Energy Dashboard reads the imported
-statistics, where each reading falls on its own day.
+The meter sensors have no state class on purpose: the Energy Dashboard reads
+the imported statistics, where each reading falls on its own day.
+
+Bill sensors follow the portal: a bill paid by direct debit stays **Unpaid**
+until the bank pays it (the **Direct debit** attribute tells), and a bill that
+groups several contracts shows its whole amount.
 
 ## Meter card
 
@@ -197,9 +209,9 @@ reset the companion app's frontend cache.
 
 ## Updates
 
-The integration checks the portal every **6 hours**. When a new real reading
-arrives, it recalculates the whole series, so corrections published by
-AcegasApsAmga are applied too. If the portal does not answer, sensors and
+The integration checks the portal every **6 hours**, readings and bills
+together. When a new real reading arrives, it recalculates the whole series,
+so corrections published by AcegasApsAmga are applied too. If the portal does not answer, sensors and
 statistics keep their values and the integration tries again after 30
 minutes.
 
@@ -220,7 +232,8 @@ Open an [issue](https://github.com/fabioscarparo/HomeAssistant-AcegasApsAmga/iss
 with the message shown and the **diagnostics** file: **Settings → Devices &
 services → AcegasApsAmga → ⋮ → Download diagnostics**. It contains no email,
 password or token, and contract, supply point and meter codes are replaced by
-`CONTRATTO_1`, `POD_1`... Do not attach screenshots with personal data.
+`CONTRATTO_1`, `POD_1`, `BOLLETTA_1`... Do not attach screenshots with
+personal data.
 
 ## Languages
 

@@ -1,0 +1,186 @@
+{
+ "list": [
+  {
+   "id": "0000000000000103",
+   "documentType": "2F",
+   "amount": 48.2,
+   "residual": 48.2,
+   "emissionDate": 1794524400000,
+   "expireDate": 1796770800000,
+   "nextBillDate": null,
+   "paymentStatus": "UNPAID",
+   "paymentStatusTranscoding": {
+    "cmsId": "S37",
+    "macroStatus": {
+     "name": "UNPAID",
+     "description": "Da Pagare"
+    },
+    "transcoding": "Da Pagare domiciliato",
+    "customerTranscoding": "Pagamento in ricezione",
+    "note": null,
+    "testata": null,
+    "onlinePaymentEnabled": false
+   },
+   "secondaryStatus": {
+    "name": "NONE",
+    "description": null
+   },
+   "paymentDate": null,
+   "paymentType": "Domiciliazione bancaria",
+   "domicilied": true,
+   "domiciliationType": "RID",
+   "contractId": "1000000001",
+   "contractServiceTypeList": [
+    {
+     "contractId": "1000000001",
+     "type": "WATER"
+    }
+   ],
+   "companyServices": [
+    {
+     "type": "WATER",
+     "amount": 48.2,
+     "company": "Acegas Aps",
+     "plico": null,
+     "billIdRef": "0000000000000103",
+     "reverserBillId": null,
+     "reverserBillDate": null,
+     "description": null
+    }
+   ],
+   "groupingContractsId": "200000000001",
+   "documentAvailable": true,
+   "billReversionState": "NOT_REVERSED",
+   "installmentEnabled": false,
+   "onlinePaymentEnabled": false,
+   "pagoPaEnabled": true,
+   "tari": false,
+   "underthreshold": false
+  },
+  {
+   "id": "0000000000000102",
+   "documentType": "2F",
+   "amount": 31.75,
+   "residual": 0.0,
+   "emissionDate": 1783893600000,
+   "expireDate": 1786053600000,
+   "nextBillDate": null,
+   "paymentStatus": "PAID",
+   "paymentStatusTranscoding": {
+    "cmsId": "S2",
+    "macroStatus": {
+     "name": "PAID",
+     "description": "Pagato"
+    },
+    "transcoding": "Pagata definitiva",
+    "customerTranscoding": "Pagata",
+    "note": null,
+    "testata": null,
+    "onlinePaymentEnabled": false
+   },
+   "secondaryStatus": {
+    "name": "NONE",
+    "description": null
+   },
+   "paymentDate": null,
+   "paymentType": "Domiciliazione bancaria",
+   "domicilied": true,
+   "domiciliationType": "RID",
+   "contractId": "1000000001",
+   "contractServiceTypeList": [
+    {
+     "contractId": "1000000001",
+     "type": "WATER"
+    }
+   ],
+   "companyServices": [
+    {
+     "type": "WATER",
+     "amount": 31.75,
+     "company": "Acegas Aps",
+     "plico": null,
+     "billIdRef": "0000000000000102",
+     "reverserBillId": null,
+     "reverserBillDate": null,
+     "description": null
+    }
+   ],
+   "groupingContractsId": "200000000001",
+   "documentAvailable": true,
+   "billReversionState": "NOT_REVERSED",
+   "installmentEnabled": false,
+   "onlinePaymentEnabled": false,
+   "pagoPaEnabled": true,
+   "tari": false,
+   "underthreshold": false
+  },
+  {
+   "id": "0000000000000101",
+   "documentType": "2F",
+   "amount": 86.4,
+   "residual": 0.0,
+   "emissionDate": 1773356400000,
+   "expireDate": 1775512800000,
+   "nextBillDate": null,
+   "paymentStatus": "PAID",
+   "paymentStatusTranscoding": {
+    "cmsId": "S2",
+    "macroStatus": {
+     "name": "PAID",
+     "description": "Pagato"
+    },
+    "transcoding": "Pagata definitiva",
+    "customerTranscoding": "Pagata",
+    "note": null,
+    "testata": null,
+    "onlinePaymentEnabled": false
+   },
+   "secondaryStatus": {
+    "name": "NONE",
+    "description": null
+   },
+   "paymentDate": null,
+   "paymentType": "Domiciliazione bancaria",
+   "domicilied": true,
+   "domiciliationType": "RID",
+   "contractId": "1000000001",
+   "contractServiceTypeList": [
+    {
+     "contractId": "1000000001",
+     "type": "WATER"
+    }
+   ],
+   "companyServices": [
+    {
+     "type": "WATER",
+     "amount": 44.1,
+     "company": "Acegas Aps",
+     "plico": null,
+     "billIdRef": "0000000000000101",
+     "reverserBillId": null,
+     "reverserBillDate": null,
+     "description": null
+    },
+    {
+     "type": "WATER",
+     "amount": 42.3,
+     "company": "Acegas Aps",
+     "plico": null,
+     "billIdRef": "0000000000000101",
+     "reverserBillId": null,
+     "reverserBillDate": null,
+     "description": null
+    }
+   ],
+   "groupingContractsId": "200000000001",
+   "documentAvailable": true,
+   "billReversionState": "NOT_REVERSED",
+   "installmentEnabled": false,
+   "onlinePaymentEnabled": false,
+   "pagoPaEnabled": true,
+   "tari": false,
+   "underthreshold": false
+  }
+ ],
+ "hasNext": false
+}
