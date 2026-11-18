@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Bill sensors: last bill, amount due, bill due date and last bill status.
 - Bill numbers are anonymized in the diagnostics.
