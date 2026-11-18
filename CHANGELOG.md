@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - Meter card redesigned: one chart of the reading periods, year by year; the
   previous period and the bill to pay under the main number; the year's bills
