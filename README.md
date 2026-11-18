@@ -31,15 +31,15 @@ bills.
   consumption and next self-reading window.
 - **Bills**: amount of the last bill, amount due, due date and payment
   status, ready for a reminder automation.
-- **Meter card**: average daily consumption of each reading period, monthly
-  consumption and the year's totals.
+- **Meter card**: average daily consumption of each reading period, year by
+  year, with the bill to pay and the year's totals.
 - **Automatic updates**: new readings and corrections are picked up on their
   own.
 - **Italian and English**, following each user's language.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/contatore-card-dark.svg">
-  <img alt="The meter card by reading period and by month, with simulated data" src="docs/images/contatore-card-light.svg">
+  <img alt="The meter card, with simulated data" src="docs/images/contatore-card-light.svg">
 </picture>
 
 > [!NOTE]
@@ -172,19 +172,18 @@ meters. It registers itself, with no Lovelace resource to add by hand: open a
 dashboard, select **Edit dashboard → Add card** and search for
 **AcegasApsAmga · Meter** (**AcegasApsAmga · Contatore** in Italian).
 
-- **Litres a day** of the last reading period, with the change from the
-  period before: a rise stands out at once, for example a leak or summer
-  watering.
-- **By reading**: one bar per period between two real readings, as wide as
-  its days and as high as its daily average. It shows only what the meter
-  measured.
-- **By month**: cubic metres per month, year by year, as in the Energy
-  Dashboard.
-- **At the bottom**: the year's total and daily average.
+- **Litres a day** of the last reading period, next to the previous period:
+  a rise stands out at once, for example a leak or summer watering.
+- **Bill to pay**: amount and due date, only while there is one.
+- **One chart per year**: one bar per period between two real readings, as
+  wide as its days and as high as its daily average. It shows only what the
+  meter measured; the arrows move between years.
+- **At the bottom**: the year's total, daily average and bills.
 
-Tap the header for the meter reading's details, or the main number for the
-daily average's. The card follows the theme, light and dark mode, the language
-and the number format of the user profile.
+Tap the header for the meter reading's details, the main number for the
+daily average's, the previous period for the reading periods' and the bill
+for the last bill's. The card follows the theme, light and dark mode, the
+language and the number format of the user profile.
 
 <details>
 <summary>YAML configuration</summary>
@@ -194,7 +193,6 @@ type: custom:acegasapsamga-contatore-card
 device_id: <device id>   # optional: defaults to the first meter
 name: Water              # optional
 icon: mdi:water          # optional
-view: readings           # readings | months
 decimals: 2              # optional: 0 to 3, for values in m³
 ```
 

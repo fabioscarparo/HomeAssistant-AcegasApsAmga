@@ -40,11 +40,19 @@ def test_la_card_usa_le_chiavi_dei_sensori():
             yield from sottoclassi(figlia)
 
     chiavi_sensori = {c.chiave for c in sottoclassi(sensor._SensoreContratto) if hasattr(c, "chiave")}
-    for chiave in ("lettura", "consumo_periodo", "media_giornaliera"):
+    for chiave in ("lettura", "consumo_periodo", "media_giornaliera", "bolletta", "da_pagare", "scadenza_bolletta"):
         assert chiave in chiavi_sensori
         assert f'"{chiave}"' in CONTENUTO
-    assert "attributes.statistic_id" in CONTENUTO
-    assert "attributes.periodi" in CONTENUTO
+    for attributo in ("periodi", "bollette", "domiciliata"):
+        assert f"attributes.{attributo}" in CONTENUTO
+
+
+def test_la_card_conosce_gli_stati_da_pagare():
+    # The card adds up the open bills with the same statuses as the integration.
+    from custom_components.acegasapsamga.bollette import STATI_DA_PAGARE
+
+    elenco = re.search(r"const STATI_DA_PAGARE = \[([^\]]*)\]", CONTENUTO).group(1)
+    assert set(re.findall(r'"(\w+)"', elenco)) == STATI_DA_PAGARE
 
 
 @pytest.mark.skipif(which("node") is None, reason="node non installato")

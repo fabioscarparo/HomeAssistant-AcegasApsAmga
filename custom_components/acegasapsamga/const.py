@@ -56,9 +56,9 @@ CONF_ID_UTENTE = "id_utente"
 # Readings arrive about once a month: four checks a day are plenty.
 INTERVALLO_AGGIORNAMENTO_ORE = 6
 
-# Readings and reading periods listed in the sensors' attributes, for the card:
-# about three years of monthly readings, two years of periods.
+# Readings, reading periods and bills listed in the sensors' attributes. The
+# card browses periods and bills year by year: about ten years of them. They
+# are not recorded, so their size does not weigh on the database.
 MAX_LETTURE_ATTRIBUTO = 36
-MAX_PERIODI_ATTRIBUTO = 24
-# Bills listed in the last bill sensor: about four years.
-MAX_BOLLETTE_ATTRIBUTO = 12
+MAX_PERIODI_ATTRIBUTO = 120
+MAX_BOLLETTE_ATTRIBUTO = 40
