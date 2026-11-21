@@ -19,6 +19,7 @@ import base64
 import hashlib
 import json
 import logging
+import math
 import re
 import secrets
 import time
@@ -48,7 +49,18 @@ USER_AGENT = (
 )
 MAX_REDIRECT = 8
 
-_RE_SETTINGS = re.compile(r"var\s+SETTINGS\s*=\s*(\{.*?\});\s*$", re.S | re.M)
+_RE_SETTINGS = re.compile(r"var\s+SETTINGS\s*=\s*")
+_REDIRECT_PARTI = urlsplit(B2C_REDIRECT_URI)
+_ERRORI_TRANSITORI_OAUTH = frozenset({"server_error", "temporarily_unavailable"})
+
+
+def _e_redirect_portale(location: str) -> bool:
+    parti = urlsplit(location)
+    return (parti.scheme, parti.netloc, parti.path) == (
+        _REDIRECT_PARTI.scheme,
+        _REDIRECT_PARTI.netloc,
+        _REDIRECT_PARTI.path,
+    )
 
 
 def nuovo_cookie_jar() -> aiohttp.CookieJar:
@@ -124,9 +136,11 @@ def estrai_settings(html: str) -> dict[str, Any]:
     if corrispondenza is None:
         raise RispostaInattesa("pagina di accesso senza SETTINGS")
     try:
-        settings = json.loads(corrispondenza.group(1))
+        settings, _ = json.JSONDecoder().raw_decode(html, corrispondenza.end())
     except ValueError as err:
         raise RispostaInattesa(f"SETTINGS non interpretabile: {err}") from err
+    if not isinstance(settings, dict):
+        raise RispostaInattesa("SETTINGS non è un oggetto JSON")
     for chiave in ("csrf", "transId"):
         if not settings.get(chiave):
             raise RispostaInattesa(f"SETTINGS senza {chiave}")
@@ -138,9 +152,14 @@ def codice_da_redirect(location: str, state: str) -> str:
     parti = urlsplit(location)
     parametri = {**parse_qs(parti.query), **parse_qs(parti.fragment)}
     if "error" in parametri:
+        errore = parametri["error"][0]
+        descrizione = (parametri.get("error_description") or parametri["error"])[0]
+        if errore in _ERRORI_TRANSITORI_OAUTH:
+            raise RispostaInattesa(descrizione)
         # For example "forgot password" or a cancelled login.
-        raise PassaggioInatteso((parametri.get("error_description") or parametri["error"])[0])
-    if parametri.get("state", [None])[0] != state:
+        raise PassaggioInatteso(descrizione)
+    stato_ricevuto = parametri.get("state", [None])[0]
+    if not stato_ricevuto or not secrets.compare_digest(stato_ricevuto, state):
         raise RispostaInattesa("redirect con uno state diverso da quello inviato")
     codice = parametri.get("code", [None])[0]
     if not codice:
@@ -148,17 +167,24 @@ def codice_da_redirect(location: str, state: str) -> str:
     return codice
 
 
-def _token_da_risposta(dati: dict[str, Any]) -> Token:
+def _token_da_risposta(
+    dati: dict[str, Any], *, refresh_precedente: str | None = None
+) -> Token:
     access_token = dati.get("access_token")
     if not access_token:
         raise RispostaInattesa("risposta del token senza access_token")
-    try:
-        durata = float(dati.get("expires_in"))
-    except (TypeError, ValueError):
-        durata = 3600.0
+    grezza_durata = dati.get("expires_in")
+    durata = 3600.0
+    if not isinstance(grezza_durata, bool):
+        try:
+            candidata = float(grezza_durata)
+        except (TypeError, ValueError):
+            candidata = 0.0
+        if math.isfinite(candidata) and candidata > 0:
+            durata = candidata
     return Token(
         access_token=access_token,
-        refresh_token=dati.get("refresh_token"),
+        refresh_token=dati.get("refresh_token") or refresh_precedente,
         scadenza=time.time() + durata,
         id_utente=id_utente_da_token(access_token),
     )
@@ -169,9 +195,9 @@ class AuthClient:
         self._session = session
 
     async def async_login(self, email: str, password: str) -> Token:
-        # Without this, B2C's single sign-on cookie would skip the form and
-        # reuse the previous account.
-        self._session.cookie_jar.clear_domain(B2C_HOST)
+        # Clear all session cookies (including parent-domain .acegasapsamga.it
+        # cookies) so B2C's SSO never skips the form or reuses a previous account.
+        self._session.cookie_jar.clear()
 
         verifier, challenge = pkce()
         state = secrets.token_urlsafe(16)
@@ -190,7 +216,7 @@ class AuthClient:
         }
         url_authorize = f"{B2C_AUTHORIZE_URL}?{urlencode(parametri)}"
         stato, html, location = await self._get(url_authorize)
-        if location is not None and location.startswith(B2C_REDIRECT_URI):
+        if location is not None and _e_redirect_portale(location):
             codice = codice_da_redirect(location, state)
         else:
             if stato != 200:
@@ -218,6 +244,7 @@ class AuthClient:
                 "refresh_token": refresh_token,
             },
             refresh=True,
+            refresh_precedente=refresh_token,
         )
 
     async def _get(self, url: str) -> tuple[int, str, str | None]:
@@ -272,6 +299,8 @@ class AuthClient:
             esito = json.loads(testo)
         except ValueError as err:
             raise RispostaInattesa(f"SelfAsserted: HTTP {stato_http}, risposta non JSON") from err
+        if stato_http >= 500 or not isinstance(esito, dict):
+            raise RispostaInattesa(f"SelfAsserted: HTTP {stato_http}")
         stato = str(esito.get("status"))
         if stato == "200":
             return
@@ -287,18 +316,26 @@ class AuthClient:
         for _ in range(MAX_REDIRECT):
             stato, html, location = await self._get(url)
             if location is None:
+                if stato != 200:
+                    raise RispostaInattesa(f"conferma: HTTP {stato}")
                 # A page instead of a redirect: B2C wants another step.
                 try:
                     passo = estrai_settings(html).get("api")
                 except RispostaInattesa:
                     passo = None
                 raise PassaggioInatteso(passo or f"HTTP {stato}")
-            if location.startswith(B2C_REDIRECT_URI):
+            if _e_redirect_portale(location):
                 return codice_da_redirect(location, state)
             url = location
         raise RispostaInattesa("troppi redirect dopo la password")
 
-    async def _richiedi_token(self, dati: dict[str, str], *, refresh: bool = False) -> Token:
+    async def _richiedi_token(
+        self,
+        dati: dict[str, str],
+        *,
+        refresh: bool = False,
+        refresh_precedente: str | None = None,
+    ) -> Token:
         try:
             async with self._session.post(
                 B2C_TOKEN_URL,
@@ -316,8 +353,10 @@ class AuthClient:
             corpo = json.loads(testo)
         except ValueError as err:
             raise RispostaInattesa(f"token: HTTP {stato}, risposta non JSON") from err
+        if not isinstance(corpo, dict):
+            raise RispostaInattesa(f"token: HTTP {stato}, risposta inattesa")
         if stato == 200:
-            return _token_da_risposta(corpo)
+            return _token_da_risposta(corpo, refresh_precedente=refresh_precedente)
         descrizione = corpo.get("error_description") or corpo.get("error") or f"HTTP {stato}"
         if refresh and corpo.get("error") in ("invalid_grant", "invalid_request"):
             raise TokenNonValido(descrizione)

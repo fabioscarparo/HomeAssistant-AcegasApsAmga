@@ -43,6 +43,8 @@ async def async_configura_energy_dashboard(
                     "type": tipo,
                     "stat_energy_from": sid,
                     "stat_cost": None,
+                    "entity_energy_price": None,
+                    "number_energy_price": None,
                     "name": (
                         f"{testo(coordinator.lingua, 'servizio_' + contratto['servizio'])} "
                         f"{coordinator.codice(contratto)}"

@@ -44,7 +44,11 @@ async def async_registra_card(hass: HomeAssistant) -> None:
     from homeassistant.components.frontend import add_extra_js_url
     from homeassistant.components.http import StaticPathConfig
 
-    impronta = await hass.async_add_executor_job(impronta_file)
+    try:
+        impronta = await hass.async_add_executor_job(impronta_file, PERCORSO_FILE)
+    except OSError as err:
+        _LOGGER.warning("Impossibile leggere il file della card (%s): %s", PERCORSO_FILE, err)
+        return
     await hass.http.async_register_static_paths(
         [StaticPathConfig(URL_STATICO, str(PERCORSO_FILE), cache_headers=True)]
     )

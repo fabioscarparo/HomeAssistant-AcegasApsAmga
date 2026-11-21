@@ -90,3 +90,42 @@ async def test_bollette_con_raggruppamento_del_profilo():
     parametri = dict(sessione.richieste[1]["params"])
     assert parametri["groupBy"] == "PLICO"
     assert parametri["pageNumber"] == "0"
+
+
+async def test_lista_non_dizionario_solleva_api_error():
+    sessione = SessioneFinta()
+    sessione.aggiungi("GET", f"{API_BASE_URL}/profile/list", RispostaFinta(200, []))
+    with pytest.raises(api.ApiError):
+        await api.ApiClient(sessione, "T").async_profili()
+
+
+async def test_paginazione_si_ferma_su_pagina_vuota():
+    sessione = SessioneFinta()
+    sessione.aggiungi(
+        "GET",
+        f"{API_BASE_URL}/v2/profile/P/read/archive/WATER",
+        RispostaFinta(200, {"list": [], "hasNext": True}),
+    )
+    assert await api.ApiClient(sessione, "T").async_letture("P", "WATER", "C") == []
+    assert len(sessione.richieste) == 1
+
+
+async def test_contratti_multi_profilo_e_scarta_senza_id():
+    sessione = SessioneFinta()
+    sessione.aggiungi(
+        "GET",
+        f"{API_BASE_URL}/profile/list",
+        RispostaFinta(200, {"list": [{"id": "P1"}, {"id": "P2"}]}),
+    )
+    sessione.aggiungi(
+        "GET",
+        f"{API_BASE_URL}/profile/P1/contract/list",
+        RispostaFinta(200, {"list": [{"id": "C1", "serviceType": "WATER"}, {"serviceType": "WATER"}]}),
+    )
+    sessione.aggiungi(
+        "GET",
+        f"{API_BASE_URL}/profile/P2/contract/list",
+        RispostaFinta(200, {"list": [{"id": "C2", "serviceType": "WATER"}]}),
+    )
+    risultato = await api.ApiClient(sessione, "T").async_contratti_account()
+    assert [(p, c["id"]) for p, c in risultato] == [("P1", "C1"), ("P2", "C2")]

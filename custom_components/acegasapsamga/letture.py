@@ -16,12 +16,13 @@ No Home Assistant imports.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from .const import FUSO_ITALIA, TIPO_LETTURA_STIMATA
+from .const import FUSO_ITALIA, STATI_LETTURA_NON_VALIDI, TIPI_LETTURA_REALI
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,28 +37,38 @@ class Lettura:
     tipo: str
     canale: str | None = None
     contatore: str | None = None
+    stato: str | None = None
 
     @property
     def reale(self) -> bool:
-        return self.tipo != TIPO_LETTURA_STIMATA
+        if self.stato and self.stato.upper() in STATI_LETTURA_NON_VALIDI:
+            return False
+        return self.tipo.upper() in TIPI_LETTURA_REALI
 
     def come_dict(self) -> dict[str, Any]:
-        return {
+        risultato: dict[str, Any] = {
             "giorno": self.giorno.isoformat(),
             "valore": self.valore,
             "tipo": self.tipo,
             "canale": self.canale,
             "contatore": self.contatore,
         }
+        if self.stato is not None:
+            risultato["stato"] = self.stato
+        return risultato
 
     @classmethod
     def da_dict(cls, dati: dict[str, Any]) -> Lettura:
+        valore = float(dati["valore"])
+        if not math.isfinite(valore) or valore < 0:
+            raise ValueError(f"valore non valido: {valore}")
         return cls(
             giorno=date.fromisoformat(dati["giorno"]),
-            valore=float(dati["valore"]),
+            valore=valore,
             tipo=str(dati["tipo"]),
             canale=dati.get("canale"),
             contatore=dati.get("contatore"),
+            stato=dati.get("stato"),
         )
 
 
@@ -67,8 +78,13 @@ def giorno_da_ms(valore: Any) -> date | None:
     Some endpoints send midnight UTC, others midnight Italian time: read in
     Europe/Rome, both give the same day.
     """
+    if isinstance(valore, bool):
+        return None
     try:
-        return datetime.fromtimestamp(float(valore) / 1000, FUSO).date()
+        secondi = float(valore) / 1000
+        if not math.isfinite(secondi):
+            return None
+        return datetime.fromtimestamp(secondi, FUSO).date()
     except (TypeError, ValueError, OverflowError, OSError):
         return None
 
@@ -84,11 +100,14 @@ def _valore(elemento: dict[str, Any]) -> float | None:
             fasce = [f.get("value") for f in misura.get("bands") or [] if isinstance(f, dict)]
             fasce = [f for f in fasce if f is not None]
             valore = fasce[0] if len(fasce) == 1 else None
-        if valore is not None:
-            try:
-                return float(valore)
-            except (TypeError, ValueError):
-                return None
+        if valore is None or isinstance(valore, bool):
+            continue
+        try:
+            numero = float(valore)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(numero) and numero >= 0:
+            return numero
     return None
 
 
@@ -101,6 +120,8 @@ def estrai_letture(grezze: list[dict[str, Any]]) -> list[Lettura]:
         if giorno is None or valore is None:
             _LOGGER.debug("Lettura non interpretabile, ignorata: %r", elemento)
             continue
+        stato_grezzo = elemento.get("status")
+        stato = str(stato_grezzo) if stato_grezzo not in (None, "", "UNKNOWN") else None
         letture.append(
             Lettura(
                 giorno=giorno,
@@ -108,6 +129,7 @@ def estrai_letture(grezze: list[dict[str, Any]]) -> list[Lettura]:
                 tipo=str(elemento.get("type") or "UNKNOWN"),
                 canale=elemento.get("channel"),
                 contatore=elemento.get("meterId"),
+                stato=stato,
             )
         )
     return ordina(set(letture))
@@ -129,6 +151,7 @@ def ordina(letture) -> list[Lettura]:
             str(l.contatore),
             l.reale,
             l.valore,
+            l.tipo.upper() == "REAL",
             l.tipo,
         ),
     )
@@ -150,10 +173,9 @@ def unisci(salvate: list[Lettura], nuove: list[Lettura]) -> list[Lettura]:
 def ancore(letture: list[Lettura]) -> list[Lettura]:
     """Real readings, one per meter and day."""
     per_giorno: dict[tuple[str | None, date], Lettura] = {}
-    for lettura in ordina(letture):
-        if lettura.reale:
-            per_giorno[(lettura.contatore, lettura.giorno)] = lettura
-    return ordina(per_giorno.values())
+    for lettura in ordina(l for l in letture if l.reale):
+        per_giorno[(lettura.contatore, lettura.giorno)] = lettura
+    return list(per_giorno.values())
 
 
 def istante(giorno: date) -> datetime:

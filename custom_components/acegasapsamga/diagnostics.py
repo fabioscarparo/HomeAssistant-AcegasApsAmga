@@ -6,6 +6,7 @@ BOLLETTA_1...
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -21,25 +22,40 @@ DA_NASCONDERE = {CONF_EMAIL, CONF_PASSWORD, CONF_ID_UTENTE, "indirizzo"}
 CODICI = (("contratto", "CONTRATTO"), ("pod", "POD"), ("contatore", "CONTATORE"), ("profilo", "PROFILO"))
 
 
-def _sostituzioni(contratti: list[dict[str, Any]]) -> dict[str, str]:
+def _aggiungi_sostituzione(sostituzioni: dict[str, str], codice: Any, etichetta: str) -> None:
+    if not codice:
+        return
+    testo = str(codice).strip()
+    if not testo:
+        return
+    sostituzioni.setdefault(testo, etichetta)
+    # statistic_id lowercases and slugifies POD/contract codes: anonymize that form too.
+    slug = re.sub(r"[^a-z0-9]+", "_", testo.lower()).strip("_")
+    if slug and slug != testo:
+        sostituzioni.setdefault(slug, etichetta.lower())
+
+
+def _sostituzioni(entry: ConfigEntry, contratti: list[dict[str, Any]]) -> dict[str, str]:
     sostituzioni: dict[str, str] = {}
+    if email := entry.data.get(CONF_EMAIL):
+        sostituzioni[str(email)] = "EMAIL"
+        sostituzioni.setdefault(str(email).lower(), "EMAIL")
+    if id_utente := entry.data.get(CONF_ID_UTENTE):
+        sostituzioni[str(id_utente)] = "UTENTE"
     for indice, contratto in enumerate(contratti, start=1):
         for campo, etichetta in CODICI:
-            if contratto.get(campo):
-                sostituzioni.setdefault(str(contratto[campo]), f"{etichetta}_{indice}")
+            _aggiungi_sostituzione(sostituzioni, contratto.get(campo), f"{etichetta}_{indice}")
     return sostituzioni
 
 
-def _anonimizza(valore: Any, sostituzioni: dict[str, str]) -> Any:
-    """Replace the codes in keys and values."""
+def _anonimizza(valore: Any, coppie: list[tuple[str, str]]) -> Any:
+    """Replace the codes in keys and values, longest first."""
     if isinstance(valore, dict):
-        return {
-            _anonimizza(k, sostituzioni): _anonimizza(v, sostituzioni) for k, v in valore.items()
-        }
+        return {_anonimizza(k, coppie): _anonimizza(v, coppie) for k, v in valore.items()}
     if isinstance(valore, list | tuple):
-        return [_anonimizza(v, sostituzioni) for v in valore]
+        return [_anonimizza(v, coppie) for v in valore]
     if isinstance(valore, str):
-        for codice, etichetta in sostituzioni.items():
+        for codice, etichetta in coppie:
             valore = valore.replace(codice, etichetta)
     return valore
 
@@ -64,11 +80,26 @@ async def async_get_config_entry_diagnostics(
             ),
         },
     }
-    sostituzioni = _sostituzioni(contratti)
+    sostituzioni = _sostituzioni(entry, contratti)
     if coordinator is not None:
-        numeri = dict.fromkeys(
-            b.numero for dati in (coordinator.data or {}).values() for b in dati.bollette
-        )
+        dati_coordinator = coordinator.data or {}
+        # Also anonymize older meters from reading history and unconfigured contracts in grouped bills.
+        prossimo_contatore = len(contratti) + 1
+        for dati in dati_coordinator.values():
+            for lettura in dati.letture:
+                if lettura.contatore and lettura.contatore not in sostituzioni:
+                    _aggiungi_sostituzione(sostituzioni, lettura.contatore, f"CONTATORE_{prossimo_contatore}")
+                    prossimo_contatore += 1
+        prossimo_contratto = len(contratti) + 1
+        numeri = dict.fromkeys(b.numero for dati in dati_coordinator.values() for b in dati.bollette)
+        for dati in dati_coordinator.values():
+            for bolletta in dati.bollette:
+                for codice_contratto in bolletta.contratti:
+                    if codice_contratto not in sostituzioni:
+                        _aggiungi_sostituzione(
+                            sostituzioni, codice_contratto, f"CONTRATTO_{prossimo_contratto}"
+                        )
+                        prossimo_contratto += 1
         for indice, numero in enumerate(numeri, start=1):
             sostituzioni.setdefault(numero, f"BOLLETTA_{indice}")
         diagnostica["coordinator"] = {
@@ -77,8 +108,7 @@ async def async_get_config_entry_diagnostics(
             "ultimo_accesso": coordinator.ultimo_accesso,
             "ultimo_errore": coordinator.ultimo_errore,
             "serie_scritte": coordinator.serie_scritte,
-            "dati": {
-                numero: dati.come_dict() for numero, dati in (coordinator.data or {}).items()
-            },
+            "dati": {numero: dati.come_dict() for numero, dati in dati_coordinator.items()},
         }
-    return _anonimizza(diagnostica, sostituzioni)
+    coppie = sorted(sostituzioni.items(), key=lambda voce: len(voce[0]), reverse=True)
+    return _anonimizza(diagnostica, coppie)

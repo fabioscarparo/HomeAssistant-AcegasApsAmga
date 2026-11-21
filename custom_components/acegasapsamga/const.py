@@ -45,6 +45,8 @@ SERVIZI_SUPPORTATI = (SERVIZIO_ACQUA,)
 
 # Estimated readings are billing estimates, not meter values.
 TIPO_LETTURA_STIMATA = "ESTIMATED"
+TIPI_LETTURA_REALI = frozenset({"REAL", "SELFREADING"})
+STATI_LETTURA_NON_VALIDI = frozenset({"KO", "IN_CHARGE"})
 
 FUSO_ITALIA = "Europe/Rome"
 
@@ -61,4 +63,4 @@ INTERVALLO_AGGIORNAMENTO_ORE = 6
 # are not recorded, so their size does not weigh on the database.
 MAX_LETTURE_ATTRIBUTO = 36
 MAX_PERIODI_ATTRIBUTO = 120
-MAX_BOLLETTE_ATTRIBUTO = 40
+MAX_BOLLETTE_ATTRIBUTO = 120

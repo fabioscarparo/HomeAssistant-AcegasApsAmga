@@ -78,9 +78,13 @@ class RispostaFinta:
 class CookieJarFinto:
     def __init__(self):
         self.pulito: list[str] = []
+        self.svuotato = 0
 
     def clear_domain(self, dominio: str) -> None:
         self.pulito.append(dominio)
+
+    def clear(self) -> None:
+        self.svuotato += 1
 
 
 class SessioneFinta:

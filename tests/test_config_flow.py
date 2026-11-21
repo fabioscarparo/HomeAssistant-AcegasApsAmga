@@ -25,8 +25,10 @@ def _senza_setup():
         yield
 
 
-def _accedi(*contratti, id_utente="utente-1", errore=None):
-    async def finto(hass, email, password):
+def _accedi(*contratti, id_utente="utente-1", errore=None, chiamate=None):
+    async def finto(hass, email, password, **kwargs):
+        if chiamate is not None:
+            chiamate.append({"email": email, "password": password, **kwargs})
         if errore:
             raise errore
         return cf.Accesso(id_utente, [dict(c) for c in contratti])
@@ -104,22 +106,29 @@ async def test_riautenticazione(hass, entry):
     risultato = await entry.start_reauth_flow(hass)
     assert risultato["step_id"] == "reauth_confirm"
 
-    with _accedi(CONTRATTO, id_utente="altro"):
+    chiamate = []
+    with _accedi(CONTRATTO, id_utente="altro", chiamate=chiamate):
         altro = await hass.config_entries.flow.async_configure(
             risultato["flow_id"], {CONF_PASSWORD: "nuova"}
         )
     assert altro["reason"] == "account_diverso"
+    assert chiamate[-1]["solo_login"] is True
 
     risultato = await entry.start_reauth_flow(hass)
     with _accedi(CONTRATTO):
         risultato = await hass.config_entries.flow.async_configure(
-            risultato["flow_id"], {CONF_PASSWORD: "nuova"}
+            risultato["flow_id"], {CONF_EMAIL: "nuova@example.com", CONF_PASSWORD: "nuova"}
         )
     assert risultato["reason"] == "reauth_successful"
+    assert entry.data[CONF_EMAIL] == "nuova@example.com"
     assert entry.data[CONF_PASSWORD] == "nuova"
+    assert entry.title == "nuova@example.com"
 
 
 async def test_opzioni_cambiano_i_contratti(hass, entry):
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
+
     with _accedi(CONTRATTO, SECONDO):
         risultato = await hass.config_entries.options.async_init(entry.entry_id)
         assert risultato["step_id"] == "init"
@@ -128,6 +137,24 @@ async def test_opzioni_cambiano_i_contratti(hass, entry):
         )
     assert risultato["type"] is FlowResultType.CREATE_ENTRY
     assert [c["contratto"] for c in entry.data[CONF_CONTRATTI]] == ["1000000001", "1000000002"]
+
+    # Removing a contract also cleans up its device and entities.
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    dispositivo = dev_reg.async_get_or_create(
+        config_entry_id=entry.entry_id, identifiers={(DOMAIN, "1000000002")}
+    )
+    ent_reg.async_get_or_create(
+        "sensor", DOMAIN, "1000000002_lettura", config_entry=entry, device_id=dispositivo.id
+    )
+    with _accedi(CONTRATTO, SECONDO):
+        risultato = await hass.config_entries.options.async_init(entry.entry_id)
+        risultato = await hass.config_entries.options.async_configure(
+            risultato["flow_id"], {CONF_CONTRATTI: ["1000000001"]}
+        )
+    assert risultato["type"] is FlowResultType.CREATE_ENTRY
+    assert dev_reg.async_get(dispositivo.id) is None
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, "1000000002_lettura") is None
 
 
 async def test_opzioni_senza_portale(hass, entry):

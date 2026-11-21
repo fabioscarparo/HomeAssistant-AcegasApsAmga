@@ -142,3 +142,55 @@ def test_periodi():
     assert periodi[0]["al"] == date(2026, 1, 29)
     assert sum(p["consumo"] for p in periodi) == 28.0
     assert periodi[-1] == lt.ultimo_periodo(_letture())
+
+
+def test_autoletture_ko_in_charge_e_unknown_non_sono_reali():
+    grezze = [
+        {"date": 1790035200000, "type": "REAL", "status": "UNKNOWN", "measurements": [{"value": 10.0}]},
+        {"date": 1790121600000, "type": "SELFREADING", "status": "OK", "measurements": [{"value": 12.0}]},
+        {"date": 1790208000000, "type": "SELFREADING", "status": "KO", "measurements": [{"value": 999.0}]},
+        {"date": 1790294400000, "type": "SELFREADING", "status": "IN_CHARGE", "measurements": [{"value": 15.0}]},
+        {"date": 1790380800000, "type": "UNKNOWN", "status": "UNKNOWN", "measurements": [{"value": 20.0}]},
+    ]
+    letture = lt.estrai_letture(grezze)
+    ancore = lt.ancore(letture)
+    assert [(a.giorno, a.valore, a.tipo) for a in ancore] == [
+        (date(2026, 9, 22), 10.0, "REAL"),
+        (date(2026, 9, 23), 12.0, "SELFREADING"),
+    ]
+
+
+def test_valori_non_validi_e_booleani_ignorati():
+    assert lt.giorno_da_ms(True) is None
+    assert lt.giorno_da_ms(False) is None
+    elemento = {
+        "date": 1790035200000,
+        "type": "REAL",
+        "measurements": [
+            {"correttore": False, "value": "n/d"},
+            {"correttore": False, "value": float("nan")},
+            {"correttore": False, "value": True},
+            {"correttore": False, "value": -5.0},
+            {"correttore": False, "value": 14.0},
+        ],
+    }
+    assert lt.estrai_letture([elemento])[0].valore == 14.0
+
+
+def test_stesso_giorno_stesso_valore_real_batte_selfreading():
+    letture = [
+        lt.Lettura(date(2026, 9, 22), 28.0, "SELFREADING", "WEB", "M1", "OK"),
+        lt.Lettura(date(2026, 9, 22), 28.0, "REAL", "DEALER", "M1", "UNKNOWN"),
+    ]
+    [unica] = lt.ancore(letture)
+    assert unica.tipo == "REAL"
+
+
+def test_statistic_id_sempre_valido():
+    from homeassistant.components.recorder.statistics import valid_statistic_id
+
+    from custom_components.acegasapsamga.statistics import statistic_id
+
+    for codice in ("-0500001-", "IT  001--E", "  ABC_123  ", "---"):
+        sid = statistic_id("WATER", codice)
+        assert valid_statistic_id(sid), sid

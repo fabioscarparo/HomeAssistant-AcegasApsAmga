@@ -18,8 +18,9 @@
       },
       "reauth_confirm": {
         "title": "Accedi di nuovo",
-        "description": "AcegasApsAmga ha rifiutato l'accesso di {email}. Inserisci la password attuale.",
+        "description": "AcegasApsAmga ha rifiutato l'accesso di {email}. Inserisci le credenziali attuali.",
         "data": {
+          "email": "Email",
           "password": "Password"
         }
       }
@@ -156,6 +157,7 @@
           "not_to_pay": "Niente da pagare",
           "credit": "A credito",
           "reversed": "Stornata",
+          "installment": "Rateizzata",
           "other": "Altro"
         }
       }

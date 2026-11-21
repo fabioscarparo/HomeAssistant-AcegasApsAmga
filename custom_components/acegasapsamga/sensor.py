@@ -18,6 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from . import bollette as bl
 from . import letture as lt
@@ -29,11 +30,12 @@ from .const import (
     NOME_INTEGRAZIONE,
     PORTALE_ORIGIN,
     SERVIZIO_ACQUA,
+    SERVIZIO_GAS,
 )
 from .coordinator import AcegasCoordinator, DatiContratto
 from .testi import testo
 
-PAGINE_CONSUMI = {SERVIZIO_ACQUA: "usage/water/", "GAS": "usage/gas/"}
+PAGINE_CONSUMI = {SERVIZIO_ACQUA: "usage/water/", SERVIZIO_GAS: "usage/gas/"}
 
 
 async def async_setup_entry(
@@ -116,7 +118,7 @@ class LetturaSensor(_SensoreContratto):
 
     @property
     def _ultima(self) -> lt.Lettura | None:
-        return lt.ultima_reale(self._dati.letture) if self._dati else None
+        return self._dati.ultima_reale if self._dati else None
 
     @property
     def native_value(self) -> float | None:
@@ -147,7 +149,7 @@ class DataLetturaSensor(_SensoreContratto):
 
     @property
     def native_value(self) -> date | None:
-        ultima = lt.ultima_reale(self._dati.letture) if self._dati else None
+        ultima = self._dati.ultima_reale if self._dati else None
         return ultima.giorno if ultima else None
 
 
@@ -165,7 +167,7 @@ class ConsumoPeriodoSensor(_SensoreContratto):
 
     @property
     def _periodo(self) -> dict[str, Any] | None:
-        return lt.ultimo_periodo(self._dati.letture) if self._dati else None
+        return self._dati.ultimo_periodo if self._dati else None
 
     @property
     def native_value(self) -> float | None:
@@ -175,7 +177,7 @@ class ConsumoPeriodoSensor(_SensoreContratto):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         periodo = self._periodo
-        tutti = lt.periodi(self._dati.letture) if self._dati else []
+        tutti = self._dati.periodi if self._dati else []
         return {
             "dal": periodo["dal"].isoformat() if periodo else None,
             "al": periodo["al"].isoformat() if periodo else None,
@@ -202,10 +204,12 @@ class MediaGiornalieraSensor(_SensoreContratto):
         self._litri = self._servizio == SERVIZIO_ACQUA
         self._attr_native_unit_of_measurement = "L/d" if self._litri else "m³/d"
         self._attr_suggested_display_precision = 0 if self._litri else 2
+        if not self._litri:
+            self._attr_icon = "mdi:fire"
 
     @property
     def native_value(self) -> float | None:
-        periodo = lt.ultimo_periodo(self._dati.letture) if self._dati else None
+        periodo = self._dati.ultimo_periodo if self._dati else None
         if periodo is None:
             return None
         media = periodo["media_giornaliera"]
@@ -229,8 +233,17 @@ class AutoletturaSensor(_SensoreContratto):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        finestra = self._finestra or {}
-        return {"fine": finestra.get("fine"), "aperta": finestra.get("aperta")}
+        finestra = self._finestra
+        if not finestra:
+            return {"fine": None, "aperta": None}
+        inizio = finestra.get("inizio")
+        fine = finestra.get("fine")
+        if inizio and fine:
+            oggi = dt_util.now(lt.FUSO).date()
+            aperta: bool | None = date.fromisoformat(inizio) <= oggi <= date.fromisoformat(fine)
+        else:
+            aperta = finestra.get("aperta")
+        return {"fine": fine, "aperta": aperta}
 
 
 class _SensoreBollette(_SensoreContratto):
@@ -274,6 +287,7 @@ class BollettaSensor(_SensoreBollette):
                     "importo": b.importo,
                     "residuo": b.residuo,
                     "stato": b.stato,
+                    "domiciliata": b.domiciliata,
                 }
                 for b in self._bollette[:MAX_BOLLETTE_ATTRIBUTO]
             ],

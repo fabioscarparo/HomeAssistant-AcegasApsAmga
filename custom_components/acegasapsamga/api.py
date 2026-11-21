@@ -8,6 +8,7 @@ No Home Assistant imports. Real answers, anonymized, are in tests/fixtures.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -81,15 +82,18 @@ class ApiClient:
             )
             if not isinstance(corpo, dict):
                 raise ApiError(f"{percorso}: risposta inattesa")
-            elementi.extend(e for e in corpo.get("list") or [] if isinstance(e, dict))
-            if not corpo.get("hasNext"):
+            pagina_elementi = [e for e in corpo.get("list") or [] if isinstance(e, dict)]
+            elementi.extend(pagina_elementi)
+            if not pagina_elementi or not corpo.get("hasNext"):
                 return elementi
         _LOGGER.warning("%s: interrotto dopo %d pagine", percorso, MAX_PAGINE)
         return elementi
 
     async def _lista(self, percorso: str, parametri: list[tuple[str, str]] | None = None) -> list[dict]:
         corpo = await self._get(percorso, parametri)
-        return [e for e in (corpo or {}).get("list") or [] if isinstance(e, dict)]
+        if not isinstance(corpo, dict):
+            raise ApiError(f"{percorso}: risposta inattesa")
+        return [e for e in corpo.get("list") or [] if isinstance(e, dict)]
 
     async def async_profili(self) -> list[dict]:
         return await self._lista("profile/list")
@@ -108,12 +112,16 @@ class ApiClient:
     async def async_contratti_account(self) -> list[tuple[str, dict]]:
         """(profile id, contract) for every profile of the account: one
         account can hold a household and a business profile."""
-        contratti: list[tuple[str, dict]] = []
-        for profilo in await self.async_profili():
-            if profilo.get("id"):
-                id_profilo = str(profilo["id"])
-                contratti.extend((id_profilo, c) for c in await self.async_contratti(id_profilo))
-        return contratti
+        id_profili = [str(p["id"]) for p in await self.async_profili() if p.get("id")]
+        if not id_profili:
+            return []
+        elenchi = await asyncio.gather(*(self.async_contratti(p) for p in id_profili))
+        return [
+            (id_profilo, c)
+            for id_profilo, elenco in zip(id_profili, elenchi, strict=True)
+            for c in elenco
+            if c.get("id")
+        ]
 
     async def async_letture(self, profilo: str, servizio: str, contratto: str) -> list[dict]:
         """The whole read archive of a contract, newest first."""

@@ -132,6 +132,7 @@ async def test_setup_scrive_statistiche_e_sensori(
     assert bolletta.attributes["scadenza"] == "2026-12-09"
     assert bolletta.attributes["domiciliata"] is True
     assert [b["stato"] for b in bolletta.attributes["bollette"]] == ["unpaid", "paid", "paid"]
+    assert all(b["domiciliata"] is True for b in bolletta.attributes["bollette"])
     assert _stato(hass, "da_pagare").state == "48.2"
     assert _stato(hass, "scadenza_bolletta").state == "2026-12-09"
     stato = _stato(hass, "stato_bolletta")
@@ -178,15 +179,94 @@ async def test_senza_novita_non_riscrive(
         await hass.async_block_till_done()
     scrivi.assert_not_called()
 
-    # A new real reading rewrites the series.
+    # A new real reading appends only the new tail hours (without clearing the series).
     nuova = dict(portale.archivio[1], date=1794268800000, type="REAL")  # 2026-11-10
     nuova["measurements"] = [{"value": 31.0, "correttore": False}]
     portale.archivio = [nuova, *portale.archivio]
+    with patch(
+        "custom_components.acegasapsamga.statistics.async_add_external_statistics",
+        wraps=__import__(
+            "homeassistant.components.recorder.statistics", fromlist=["async_add_external_statistics"]
+        ).async_add_external_statistics,
+    ) as aggiungi:
+        await entry.runtime_data.async_refresh()
+        await hass.async_block_till_done()
+        await async_wait_recording_done(hass)
+    righe_scritte = aggiungi.call_args.args[2]
+    assert len(righe_scritte) == 49 * 24 + 1  # 2026-09-23..2026-11-10 (includes DST fall-back)
+    assert (await _ultima_statistica(hass))["sum"] == pytest.approx(31.0)
+    assert _stato(hass, "lettura").state == "31.0"
+
+    # A historical correction clears and rewrites the whole series cleanly.
+    corretta = dict(portale.archivio[2], measurements=[{"value": 29.0, "correttore": False}])
+    portale.archivio = [portale.archivio[0], portale.archivio[1], corretta, *portale.archivio[3:]]
     await entry.runtime_data.async_refresh()
     await hass.async_block_till_done()
     await async_wait_recording_done(hass)
     assert (await _ultima_statistica(hass))["sum"] == pytest.approx(31.0)
-    assert _stato(hass, "lettura").state == "31.0"
+
+
+async def test_reauth_con_cache_ferma_il_polling(
+    recorder_mock, hass, entry: MockConfigEntry, portale, freezer
+):
+    freezer.move_to(ADESSO)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+    portale.errore_login = CredenzialiNonValide("Credenziali non valide.")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Sensors stay loaded with cached data, reauth starts, and periodic polling is cancelled.
+    assert entry.state is ConfigEntryState.LOADED
+    assert _stato(hass, "lettura").state == "28.0"
+    assert entry.runtime_data._unsub_refresh is None
+    flussi = hass.config_entries.flow.async_progress_by_handler("acegasapsamga")
+    assert [f["context"]["source"] for f in flussi] == ["reauth"]
+
+
+async def test_403_su_endpoint_opzionale_non_blocca_le_letture(
+    recorder_mock, hass, entry: MockConfigEntry, portale, freezer
+):
+    from custom_components.acegasapsamga.api import TokenScaduto
+
+    freezer.move_to(ADESSO)
+    portale.errore_bollette = TokenScaduto("forbidden", status=403)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.runtime_data.last_update_success
+    assert _stato(hass, "lettura").state == "28.0"
+
+
+async def test_autolettura_aperta_dinamica_e_aggiornamento_matricola(
+    recorder_mock, hass, entry: MockConfigEntry, portale, freezer
+):
+    from homeassistant.helpers import device_registry as dr
+
+    freezer.move_to(ADESSO)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert _stato(hass, "autolettura").attributes["aperta"] is False
+
+    # Move time inside the self-reading window (2027-02-28 .. 2027-03-05) without polling.
+    freezer.move_to("2027-03-02 10:00:00+00:00")
+    entry.runtime_data.async_update_listeners()
+    await hass.async_block_till_done()
+    assert _stato(hass, "autolettura").attributes["aperta"] is True
+
+    # A new reading from a replacement meter updates the device serial number.
+    nuovo_contatore = dict(portale.archivio[1], date=1794268800000, meterId="MATRICOLA_NUOVA")
+    portale.archivio = [nuovo_contatore, *portale.archivio]
+    await entry.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+    dispositivo = next(
+        d
+        for d in dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+        if ("acegasapsamga", "1000000001") in d.identifiers
+    )
+    assert dispositivo.serial_number == "MATRICOLA_NUOVA"
 
 
 async def test_dati_salvati_se_il_portale_non_risponde(

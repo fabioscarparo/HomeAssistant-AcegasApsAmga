@@ -58,7 +58,7 @@ async def main(salva: bool) -> int:
 
         if token.refresh_token:
             try:
-                await auth.AuthClient(sessione).async_refresh(token.refresh_token)
+                token = await auth.AuthClient(sessione).async_refresh(token.refresh_token)
                 print("Rinnovo del token: ok.")
             except auth.AuthError as err:
                 print(f"Rinnovo del token non riuscito ({type(err).__name__}): {err}")
@@ -85,8 +85,11 @@ async def main(salva: bool) -> int:
                 print(f"  Serie Energia: {len(righe)} ore, dal {inizio:%d/%m/%Y} "
                       f"al {fine:%d/%m/%Y}, totale {righe[-1]['sum']:.1f} m³")
             if periodo := lt.ultimo_periodo(letture):
-                print(f"  Ultimo periodo: {periodo['dal']} - {periodo['al']}, {periodo['consumo']:.1f} m³, "
-                      f"{periodo['media_giornaliera'] * 1000:.0f} L al giorno")
+                if contratto["servizio"] == "WATER":
+                    media = f"{periodo['media_giornaliera'] * 1000:.0f} L al giorno"
+                else:
+                    media = f"{periodo['media_giornaliera']:.2f} m³ al giorno"
+                print(f"  Ultimo periodo: {periodo['dal']} - {periodo['al']}, {periodo['consumo']:.1f} m³, {media}")
 
             if salva:
                 file = Path(f"verifica_{contratto['contratto']}.json")

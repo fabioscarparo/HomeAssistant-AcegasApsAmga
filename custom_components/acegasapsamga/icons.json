@@ -26,7 +26,8 @@
           "expired": "mdi:receipt-text-remove",
           "paid_partial": "mdi:receipt-text-minus",
           "paid": "mdi:receipt-text-check",
-          "reversed": "mdi:receipt-text-arrow-left"
+          "reversed": "mdi:receipt-text-arrow-left",
+          "installment": "mdi:receipt-text-arrow-right"
         }
       }
     }

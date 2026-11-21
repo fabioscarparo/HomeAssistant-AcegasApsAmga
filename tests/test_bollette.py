@@ -67,3 +67,24 @@ def test_bollette_del_contratto():
 def test_salvataggio():
     for bolletta in _bollette():
         assert bl.Bolletta.da_dict(bolletta.come_dict()) == bolletta
+
+
+def test_stati_aggiuntivi_duplicati_e_nan():
+    base = carica("bollette.json")["list"][0]
+    grezze = [
+        dict(base, id="B1", paymentStatus="PARTIALLY_REVERSED"),
+        dict(base, id="B2", paymentStatus="UNDERTHRESHOLD"),
+        dict(base, id="B3", paymentStatus="UNPAID", underthreshold=True),
+        dict(base, id="B4", paymentStatus="UNPAID", installmentParent=True),
+        dict(base, id="B5", paymentStatus="UNPAID", amount=20.0, residual=20.0),
+        dict(base, id="B5", paymentStatus="UNPAID", amount=20.0, residual=20.0),
+        dict(base, id="B6", amount=float("nan")),
+        dict(base, id="B7", amount=True),
+    ]
+    bollette = {b.numero: b for b in bl.estrai_bollette(grezze)}
+    assert set(bollette) == {"B1", "B2", "B3", "B4", "B5"}
+    assert bollette["B1"].stato == "reversed"
+    assert bollette["B2"].stato == "not_to_pay"
+    assert bollette["B3"].stato == "not_to_pay"
+    assert bollette["B4"].stato == "installment"
+    assert bl.totale_da_pagare(list(bollette.values())) == 20.0

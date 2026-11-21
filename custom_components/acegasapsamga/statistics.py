@@ -32,7 +32,7 @@ SUFFISSI = {SERVIZIO_ACQUA: "acqua", SERVIZIO_GAS: "gas"}
 
 
 def statistic_id(servizio: str, codice: str) -> str:
-    slug = re.sub(r"[^a-z0-9_]", "_", codice.lower())
+    slug = re.sub(r"[^a-z0-9]+", "_", codice.lower()).strip("_") or "contratto"
     return f"{DOMAIN}:{slug}_{SUFFISSI[servizio]}"
 
 
@@ -59,6 +59,12 @@ async def async_ultima_ora(hass: HomeAssistant, statistic_id: str) -> datetime |
     return dt_util.utc_from_timestamp(righe[0]["start"])
 
 
+async def async_cancella_serie(hass: HomeAssistant, statistic_id: str) -> None:
+    """Remove all rows of a statistic from the Recorder."""
+    _LOGGER.info("%s: svuoto la serie nel Recorder", statistic_id)
+    get_instance(hass).async_clear_statistics([statistic_id])
+
+
 async def async_scrivi_serie(
     hass: HomeAssistant,
     statistic_id: str,
@@ -66,18 +72,28 @@ async def async_scrivi_serie(
     righe: list[dict[str, Any]],
     *,
     ultima_ora_scritta: datetime | None,
+    riscrivi: bool = True,
 ) -> None:
     if not righe:
+        if ultima_ora_scritta is not None:
+            await async_cancella_serie(hass, statistic_id)
         return
-    if ultima_ora_scritta is not None and righe[-1]["start"] < ultima_ora_scritta:
-        _LOGGER.info("%s: la serie si è accorciata, la riscrivo da zero", statistic_id)
+    if ultima_ora_scritta is not None and (riscrivi or righe[-1]["start"] < ultima_ora_scritta):
+        _LOGGER.info("%s: riscrivo la serie da zero", statistic_id)
         # The Recorder runs its jobs in order: the clear happens before the import.
         get_instance(hass).async_clear_statistics([statistic_id])
-    async_add_external_statistics(hass, metadata(statistic_id, nome), righe)
+        da_scrivere = righe
+    elif ultima_ora_scritta is not None:
+        da_scrivere = [r for r in righe if r["start"] > ultima_ora_scritta]
+        if not da_scrivere:
+            return
+    else:
+        da_scrivere = righe
+    async_add_external_statistics(hass, metadata(statistic_id, nome), da_scrivere)
     _LOGGER.info(
         "%s: scritte %d ore, dal %s al %s",
         statistic_id,
-        len(righe),
-        righe[0]["start"].isoformat(),
-        righe[-1]["start"].isoformat(),
+        len(da_scrivere),
+        da_scrivere[0]["start"].isoformat(),
+        da_scrivere[-1]["start"].isoformat(),
     )

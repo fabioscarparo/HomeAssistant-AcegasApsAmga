@@ -40,8 +40,19 @@ def test_chiavi_usate_nel_codice():
     assert sensori == set(italiano["entity"]["sensor"])
     eccezioni = set(re.findall(r'translation_key="(\w+)"', codice))
     assert eccezioni <= set(italiano["exceptions"])
-    errori = set(re.findall(r'return "(\w+)"', codice)) | {"nessuna_scelta"}
+    config_flow = (PACCHETTO / "config_flow.py").read_text()
+    blocco_errori = config_flow[
+        config_flow.index("def errore_accesso") : config_flow.index("def etichetta")
+    ]
+    errori = set(re.findall(r'return "(\w+)"', blocco_errori)) | {"nessuna_scelta"}
     assert errori <= set(italiano["config"]["error"])
     icone = json.loads((PACCHETTO / "icons.json").read_text())
     # Volume sensors keep the device class icon (water or gas).
     assert set(icone["entity"]["sensor"]) == sensori - {"lettura", "consumo_periodo"}
+
+
+def test_versione_card_uguale_al_manifest():
+    manifest = json.loads((PACCHETTO / "manifest.json").read_text())
+    card = (PACCHETTO / "frontend" / "acegasapsamga-contatore-card.js").read_text(encoding="utf-8")
+    versione = re.search(r'const VERSION = "([^"]+)"', card).group(1)
+    assert versione == manifest["version"]

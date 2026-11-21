@@ -18,8 +18,9 @@
       },
       "reauth_confirm": {
         "title": "Sign in again",
-        "description": "AcegasApsAmga rejected the sign-in of {email}. Enter the current password.",
+        "description": "AcegasApsAmga rejected the sign-in of {email}. Enter the current credentials.",
         "data": {
+          "email": "Email",
           "password": "Password"
         }
       }
@@ -156,6 +157,7 @@
           "not_to_pay": "Nothing to pay",
           "credit": "Credit",
           "reversed": "Reversed",
+          "installment": "Installment plan",
           "other": "Other"
         }
       }

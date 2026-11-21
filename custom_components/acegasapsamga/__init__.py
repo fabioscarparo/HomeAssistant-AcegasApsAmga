@@ -51,11 +51,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: AcegasConfigEntry) -> bo
     coordinator = AcegasCoordinator(hass, entry)
     entry.runtime_data = coordinator
     if await coordinator.async_carica_cache():
-        # With saved data the setup goes on even if the portal is down now:
-        # the sensors show the saved values and the update is retried later.
-        await coordinator.async_refresh()
-    else:
-        await coordinator.async_config_entry_first_refresh()
+        # With saved data the sensors come up right away and the portal is
+        # refreshed without blocking Home Assistant's startup. Forwarding
+        # platforms first also ensures a failed auth cancels the polling timer.
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        entry.async_create_task(
+            hass, coordinator.async_refresh(), f"{DOMAIN}_refresh_{entry.entry_id}"
+        )
+        return True
+    await coordinator.async_config_entry_first_refresh()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 

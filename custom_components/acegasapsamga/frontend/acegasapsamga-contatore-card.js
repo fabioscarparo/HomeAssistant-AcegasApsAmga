@@ -42,6 +42,7 @@ const STRINGS = {
     bill_due: "Bolletta da pagare",
     bills_due: "{count} bollette da pagare",
     bill_overdue: "Bolletta scaduta",
+    bills_overdue: "{count} bollette scadute",
     due_by: "Entro il {date}",
     direct_debit_on: "Addebito il {date}",
     overdue_since: "Scadeva il {date}",
@@ -60,6 +61,8 @@ const STRINGS = {
     empty_text: "Per calcolare i consumi servono almeno due letture reali del contatore. AcegasApsAmga legge il contatore circa una volta al mese.",
     not_configured_title: "Integrazione non configurata",
     not_configured_text: "Aggiungi l'integrazione AcegasApsAmga per vedere qui i consumi del tuo contatore.",
+    device_not_found_title: "Contatore non trovato",
+    device_not_found_text: "Il contatore configurato per questa card non è più disponibile. Scegline un altro dalle impostazioni della card.",
     ask_admin: "Chiedi a un amministratore di farlo.",
     configure: "Configura",
     chart: "Consumo medio giornaliero per periodo di lettura nel {year}",
@@ -83,6 +86,7 @@ const STRINGS = {
     bill_due: "Bill to pay",
     bills_due: "{count} bills to pay",
     bill_overdue: "Bill overdue",
+    bills_overdue: "{count} bills overdue",
     due_by: "Due by {date}",
     direct_debit_on: "Direct debit on {date}",
     overdue_since: "Was due on {date}",
@@ -101,6 +105,8 @@ const STRINGS = {
     empty_text: "Consumption needs at least two real meter readings. AcegasApsAmga reads the meter about once a month.",
     not_configured_title: "Integration not set up",
     not_configured_text: "Add the AcegasApsAmga integration to see your meter's consumption here.",
+    device_not_found_title: "Meter not found",
+    device_not_found_text: "The meter configured for this card is no longer available. Choose another one in the card settings.",
     ask_admin: "Ask an administrator to do it.",
     configure: "Set up",
     chart: "Average daily consumption by reading period in {year}",
@@ -119,7 +125,7 @@ const lingua = (hass) => {
 
 const traduci = (hass, key, vars = {}) => {
   let s = STRINGS[lingua(hass)][key] ?? STRINGS.en[key] ?? key;
-  for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, v);
+  for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, () => String(v));
   return s;
 };
 
@@ -137,6 +143,28 @@ const escapeHtml = (s) =>
 // is {y, m, d} with a 0-based month.
 
 const _dtfCache = new Map();
+const _nfCache = new Map();
+const _dfCache = new Map();
+
+const numberFormatter = (locale, opzioni) => {
+  const chiave = `${locale || ""}|${opzioni.style || "decimal"}|${opzioni.currency || ""}|${opzioni.minimumFractionDigits ?? ""}|${opzioni.useGrouping}`;
+  let nf = _nfCache.get(chiave);
+  if (!nf) {
+    nf = new Intl.NumberFormat(locale, opzioni);
+    _nfCache.set(chiave, nf);
+  }
+  return nf;
+};
+
+const dateFormatter = (lang, tz, opzioni) => {
+  const chiave = `${lang}|${tz}|${opzioni.day || ""}|${opzioni.month || ""}|${opzioni.year || ""}`;
+  let df = _dfCache.get(chiave);
+  if (!df) {
+    df = new Intl.DateTimeFormat(lang, { timeZone: tz, ...opzioni });
+    _dfCache.set(chiave, df);
+  }
+  return df;
+};
 const partiNelFuso = (date, tz) => {
   let dtf = _dtfCache.get(tz);
   if (!dtf) {
@@ -251,6 +279,7 @@ class AcegasContatoreCard extends HTMLElement {
     this._larghezza = 0;
     this._hover = null;
     this._firma = "";
+    this._chiudiEsterno = null;
   }
 
   setConfig(config) {
@@ -286,7 +315,7 @@ class AcegasContatoreCard extends HTMLElement {
 
   connectedCallback() {
     this._ro = new ResizeObserver((entries) => {
-      const w = Math.floor(entries[0].contentRect.width);
+      const w = Math.floor(entries[0]?.contentRect.width || 0);
       if (w && w !== this._larghezza) {
         this._larghezza = w;
         this._renderGrafico();
@@ -298,6 +327,15 @@ class AcegasContatoreCard extends HTMLElement {
 
   disconnectedCallback() {
     this._ro?.disconnect();
+    this._ro = null;
+    this._staccaChiusuraEsterna();
+  }
+
+  _staccaChiusuraEsterna() {
+    if (this._chiudiEsterno) {
+      document.removeEventListener("pointerdown", this._chiudiEsterno);
+      this._chiudiEsterno = null;
+    }
   }
 
   getCardSize() {
@@ -316,7 +354,10 @@ class AcegasContatoreCard extends HTMLElement {
 
   get _contatore() {
     const contatori = this._contatori || [];
-    return contatori.find((c) => c.deviceId === this._config.device_id) || contatori[0] || null;
+    if (this._config.device_id) {
+      return contatori.find((c) => c.deviceId === this._config.device_id) || null;
+    }
+    return contatori[0] || null;
   }
 
   _stato(chiave) {
@@ -343,8 +384,18 @@ class AcegasContatoreCard extends HTMLElement {
       const s = this._stato(k);
       return s ? `${s.state}@${s.last_updated}` : "";
     });
-    return [this._contatore?.deviceId, h.themes?.darkMode, h.locale?.language, h.locale?.number_format,
-      h.config?.time_zone, h.user?.is_admin, ...stati].join("|");
+    return [
+      this._contatore?.deviceId,
+      this._config.device_id,
+      h.themes?.theme,
+      h.themes?.darkMode,
+      h.locale?.language || h.language,
+      h.locale?.number_format,
+      h.config?.time_zone,
+      (h.config?.components || []).includes(DOMAIN),
+      h.user?.is_admin,
+      ...stati,
+    ].join("|");
   }
 
   // Periods between real readings, oldest first, from the integration.
@@ -392,14 +443,20 @@ class AcegasContatoreCard extends HTMLElement {
     const totale = this._stato("da_pagare");
     const importo = valido(totale) ? Number(totale.state) : 0;
     if (!(importo > 0)) return null;
+    const oggi = oggiIso(this._tz);
     const aperte = this._bollette().filter((b) => STATI_DA_PAGARE.includes(b.stato) && b.residuo > 0);
     const scadenzaSensore = this._stato("scadenza_bolletta");
     const scadenza = valido(scadenzaSensore)
       ? scadenzaSensore.state
       : aperte.map((b) => b.scadenza).filter(Boolean).sort()[0] || null;
-    const scaduta = aperte.some((b) => b.stato === "expired") || (!!scadenza && scadenza < oggiIso(this._tz));
-    const domiciliata = !!this._stato("bolletta")?.attributes.domiciliata;
-    return { importo, scadenza, quante: Math.max(aperte.length, 1), scaduta, domiciliata };
+    const eScaduta = (b) => b.stato === "expired" || (!!b.scadenza && b.scadenza < oggi);
+    const scaduta = aperte.some(eScaduta) || (!!scadenza && scadenza < oggi);
+    const tutteScadute = aperte.length > 0 ? aperte.every(eScaduta) : scaduta;
+    const conFlag = aperte.filter((b) => typeof b.domiciliata === "boolean");
+    const domiciliata = conFlag.length > 0
+      ? conFlag.every((b) => b.domiciliata)
+      : !!this._stato("bolletta")?.attributes.domiciliata;
+    return { importo, scadenza, quante: Math.max(aperte.length, 1), scaduta, tutteScadute, domiciliata };
   }
 
   // --- Formatting -----------------------------------------------------------------
@@ -415,7 +472,7 @@ class AcegasContatoreCard extends HTMLElement {
     const a = Math.abs(v);
     // Fewer digits as the value grows, unless the config or the caller says otherwise.
     const d = cifre ?? this._config.decimals ?? (a >= 100 ? 0 : a >= 10 ? 1 : 2);
-    return new Intl.NumberFormat(this._locale, {
+    return numberFormatter(this._locale, {
       minimumFractionDigits: d, maximumFractionDigits: d,
       useGrouping: this._hass?.locale?.number_format !== "none",
     }).format(v);
@@ -429,7 +486,7 @@ class AcegasContatoreCard extends HTMLElement {
 
   _euro(v) {
     if (v === null || v === undefined || Number.isNaN(v)) return "-";
-    return new Intl.NumberFormat(this._locale, {
+    return numberFormatter(this._locale, {
       style: "currency", currency: "EUR", useGrouping: this._hass?.locale?.number_format !== "none",
     }).format(v);
   }
@@ -444,8 +501,8 @@ class AcegasContatoreCard extends HTMLElement {
   }
 
   _data(date, opzioni) {
-    const lang = this._hass?.locale?.language || "it";
-    return new Intl.DateTimeFormat(lang, { timeZone: this._tz, ...opzioni }).format(date);
+    const lang = this._hass?.locale?.language || this._hass?.language || "it";
+    return dateFormatter(lang, this._tz, opzioni).format(date);
   }
 
   _giorno(iso, opzioni = { day: "numeric", month: "short" }) {
@@ -464,7 +521,7 @@ class AcegasContatoreCard extends HTMLElement {
   _render() {
     if (!this._hass) return;
     if (!this._contatore) {
-      this._renderVuota("not_configured");
+      this._renderVuota(this._config.device_id ? "device_not_found" : "not_configured");
       return;
     }
     const periodi = this._periodi();
@@ -497,7 +554,7 @@ class AcegasContatoreCard extends HTMLElement {
 
     this._renderRiepilogo(periodi);
     this._larghezza = $(".chart").clientWidth || this._larghezza;
-    this._renderGrafico();
+    this._renderGrafico(periodi);
   }
 
   _renderIntestazione() {
@@ -549,9 +606,11 @@ class AcegasContatoreCard extends HTMLElement {
     $(".facts").hidden = fatto.hidden && $('[data-fatto="prima"]').hidden;
     if (!conto) return;
     fatto.classList.toggle("scaduta", conto.scaduta);
-    fatto.querySelector(".fact-label").textContent = conto.scaduta
-      ? t("bill_overdue")
-      : conto.quante > 1 ? t("bills_due", { count: String(conto.quante) }) : t("bill_due");
+    fatto.querySelector(".fact-label").textContent = conto.quante > 1
+      ? conto.tutteScadute
+        ? t("bills_overdue", { count: String(conto.quante) })
+        : t("bills_due", { count: String(conto.quante) })
+      : conto.scaduta ? t("bill_overdue") : t("bill_due");
     fatto.querySelector(".fact-value").textContent = this._euro(conto.importo);
     const data = conto.scadenza ? this._giorno(conto.scadenza) : null;
     fatto.querySelector(".fact-sub span").textContent = !data
@@ -580,8 +639,13 @@ class AcegasContatoreCard extends HTMLElement {
     $(".stats").classList.toggle("tre", conBollette);
     $('[data-stat="bollette"]').hidden = !conBollette;
     if (conBollette) {
-      const dellAnno = this._bollette().filter((b) => String(b.emissione).startsWith(`${anno}-`));
-      const totale = dellAnno.reduce((s, b) => s + (Number(b.importo) || 0), 0);
+      const dellAnno = this._bollette().filter(
+        (b) => String(b.emissione).startsWith(`${anno}-`) && b.stato !== "reversed"
+      );
+      const totale = dellAnno.reduce((s, b) => {
+        const importo = Number(b.importo) || 0;
+        return s + (b.stato === "credit" ? -Math.abs(importo) : importo);
+      }, 0);
       imposta("bollette", t("bills_year", { year: anno }), dellAnno.length ? this._euro(totale) : "-");
     }
   }
@@ -596,16 +660,23 @@ class AcegasContatoreCard extends HTMLElement {
   }
 
   _renderVuota(chiave) {
-    // Integration missing, or set up without two real readings yet.
+    // Integration missing, meter removed, or set up without two real readings yet.
+    this._ro?.disconnect();
+    this._staccaChiusuraEsterna();
     const configurata = (this._hass.config?.components || []).includes(DOMAIN);
     const quale = chiave === "not_configured" && configurata ? "empty" : chiave;
     const firma = `vuota-${quale}-${lingua(this._hass)}-${this._hass.user?.is_admin}`;
     if (this._modo === firma) return;
     this._modo = firma;
     const t = (k) => traduci(this._hass, k);
-    const contenuto = quale === "not_configured"
-      ? this._alertConAzione(t("not_configured_title"), t("not_configured_text"), t("configure"), URL_CONFIGURA)
-      : `<ha-alert alert-type="info" title="${escapeHtml(t("empty_title"))}">${escapeHtml(t("empty_text"))}</ha-alert>`;
+    let contenuto;
+    if (quale === "not_configured") {
+      contenuto = this._alertConAzione(t("not_configured_title"), t("not_configured_text"), t("configure"), URL_CONFIGURA);
+    } else if (quale === "device_not_found") {
+      contenuto = `<ha-alert alert-type="warning" title="${escapeHtml(t("device_not_found_title"))}">${escapeHtml(t("device_not_found_text"))}</ha-alert>`;
+    } else {
+      contenuto = `<ha-alert alert-type="info" title="${escapeHtml(t("empty_title"))}">${escapeHtml(t("empty_text"))}</ha-alert>`;
+    }
     this.shadowRoot.innerHTML = `<style>${STILE}</style><ha-card><div class="empty-card">${contenuto}</div></ha-card>`;
     this.shadowRoot.querySelectorAll("[data-percorso]").forEach((el) =>
       el.addEventListener("click", () => naviga(el.dataset.percorso)));
@@ -617,29 +688,29 @@ class AcegasContatoreCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>${STILE}</style>
       <ha-card>
-        <div class="header" role="button" tabindex="0" data-apri="lettura">
+        <button type="button" class="header" data-apri="lettura">
           <div class="icon"><ha-icon></ha-icon></div>
           <div class="info">
             <div class="primary"></div>
             <div class="secondary"></div>
           </div>
-        </div>
+        </button>
         <div class="content">
-          <div class="hero" role="button" tabindex="0" data-apri="media_giornaliera">
+          <button type="button" class="hero" data-apri="media_giornaliera">
             <div class="hero-main"><span class="hero-value"></span><span class="hero-unit"></span></div>
             <div class="hero-sub"></div>
-          </div>
+          </button>
           <div class="facts">
-            <div class="fact" role="button" tabindex="0" data-fatto="prima" data-apri="consumo_periodo" hidden>
+            <button type="button" class="fact" data-fatto="prima" data-apri="consumo_periodo" hidden>
               <div class="fact-label"></div>
               <div class="fact-value"></div>
               <div class="fact-sub"><span></span></div>
-            </div>
-            <div class="fact" role="button" tabindex="0" data-fatto="bolletta" data-apri="bolletta" hidden>
+            </button>
+            <button type="button" class="fact" data-fatto="bolletta" data-apri="bolletta" hidden>
               <div class="fact-label"></div>
               <div class="fact-value"></div>
               <div class="fact-sub"><span></span></div>
-            </div>
+            </button>
           </div>
           <div class="nav">
             <ha-icon-button data-azione="prev"><ha-icon icon="mdi:chevron-left"></ha-icon></ha-icon-button>
@@ -648,7 +719,7 @@ class AcegasContatoreCard extends HTMLElement {
           </div>
           <div class="chart">
             <div class="svg-host"></div>
-            <div class="tooltip" hidden></div>
+            <div id="chart-tooltip" class="tooltip" role="tooltip" hidden></div>
           </div>
           <div class="stats">
             <div class="stat" data-stat="anno"><div class="stat-label"></div><div class="stat-value"></div></div>
@@ -668,14 +739,7 @@ class AcegasContatoreCard extends HTMLElement {
     root.querySelector('[data-azione="next"]').addEventListener("click", () => sposta(1));
     // Header, numbers and the bill open the details of their sensor, like a tile.
     root.querySelectorAll("[data-apri]").forEach((el) => {
-      const apri = () => this._moreInfo(this._contatore?.entita[el.dataset.apri]);
-      el.addEventListener("click", apri);
-      el.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter" || ev.key === " ") {
-          ev.preventDefault();
-          apri();
-        }
-      });
+      el.addEventListener("click", () => this._moreInfo(this._contatore?.entita[el.dataset.apri]));
     });
     if (this._ro) {
       this._ro.disconnect();
@@ -690,9 +754,10 @@ class AcegasContatoreCard extends HTMLElement {
 
   // --- Chart ----------------------------------------------------------------------
 
-  _renderGrafico() {
+  _renderGrafico(periodi = this._periodi()) {
     const host = this.shadowRoot.querySelector(".svg-host");
     if (!host || this._anno === null) return;
+    this._staccaChiusuraEsterna();
     const W = this._larghezza || host.clientWidth;
     if (!W) {
       host.innerHTML = "";
@@ -701,7 +766,6 @@ class AcegasContatoreCard extends HTMLElement {
     const t = (k, v) => traduci(this._hass, k, v);
     const tz = this._tz;
     const anno = this._anno;
-    const periodi = this._periodi();
     const inizioAnno = this._inizioAnno(anno);
     const fineAnno = this._inizioAnno(anno + 1);
     const f = (ms) => (ms - inizioAnno) / (fineAnno - inizioAnno);
@@ -711,7 +775,10 @@ class AcegasContatoreCard extends HTMLElement {
       .filter((p) => p.fine > inizioAnno && p.inizio < fineAnno)
       .map((p) => ({ p, f0: Math.max(0, f(p.inizio)), f1: Math.min(1, f(p.fine)) }));
     const colore = this._colore();
-    const scala = scalaArrotondata(Math.max(0, ...voci.map((v) => v.p.media)), 4);
+    // Exclude sliver edges (< 4px) from the Y scale so an undrawn sliver cannot flatten the chart.
+    const sogliaFrazione = 4 / Math.max(10, W - 40);
+    const perScala = voci.filter((v) => v.f1 - v.f0 >= sogliaFrazione);
+    const scala = scalaArrotondata(Math.max(0, ...(perScala.length ? perScala : voci).map((v) => v.p.media)), 4);
 
     // Room above the top value for the unit label.
     const H = 192;
@@ -738,6 +805,7 @@ class AcegasContatoreCard extends HTMLElement {
 
     // Like the energy cards: 50% fill, solid 1.5px border, top corners rounded to 4px.
     const barra = (x0, x1, v) => {
+      if (v <= 0) return "";
       const w = x1 - x0;
       const y0 = y(0);
       const y1 = y(v);
@@ -772,7 +840,7 @@ class AcegasContatoreCard extends HTMLElement {
     }
 
     host.innerHTML = `
-      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(t("chart", { year: anno }))}">
+      <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" tabindex="0" aria-label="${escapeHtml(t("chart", { year: anno }))}">
         ${parti.join("")}
         <rect class="hit" x="${left}" y="${top}" width="${plotW}" height="${plotH + 10}"/>
       </svg>
@@ -791,29 +859,51 @@ class AcegasContatoreCard extends HTMLElement {
       this._hover = null;
       banda.setAttribute("width", 0);
       tip.hidden = true;
+      svg.removeAttribute("aria-describedby");
+      this._staccaChiusuraEsterna();
     };
     const mostra = (i) => {
-      if (i === null) return nascondi();
+      if (i === null || !voci[i]) return nascondi();
       const v = voci[i];
       this._hover = i;
       banda.setAttribute("x", x(v.f0));
       banda.setAttribute("width", (v.f1 - v.f0) * plotW);
       tip.innerHTML = this._tooltip(v.p, colore);
       tip.hidden = false;
+      svg.setAttribute("aria-describedby", "chart-tooltip");
       const cx = x((v.f0 + v.f1) / 2);
       const meta = ((v.f1 - v.f0) * plotW) / 2;
       const tw = tip.offsetWidth;
       const lx = cx < W / 2 ? cx + meta + 8 : cx - meta - 8 - tw;
       tip.style.left = `${Math.max(0, Math.min(W - tw, lx))}px`;
       tip.style.top = `${Math.min(top, H - tip.offsetHeight)}px`;
+      if (!this._chiudiEsterno) {
+        this._chiudiEsterno = (ev) => {
+          if (!ev.composedPath().includes(svg)) nascondi();
+        };
+        document.addEventListener("pointerdown", this._chiudiEsterno);
+      }
     };
     svg.addEventListener("pointermove", (ev) => ev.pointerType === "mouse" && mostra(indice(ev)));
     svg.addEventListener("pointerleave", (ev) => ev.pointerType === "mouse" && nascondi());
-    svg.addEventListener("click", (ev) => {
+    svg.addEventListener("pointerup", (ev) => {
       const i = indice(ev);
       if (i === this._hover && ev.pointerType !== "mouse") nascondi();
       else mostra(i);
     });
+    svg.addEventListener("keydown", (ev) => {
+      if (!voci.length) return;
+      if (ev.key === "Escape") {
+        nascondi();
+      } else if (ev.key === "ArrowRight") {
+        ev.preventDefault();
+        mostra(this._hover === null ? 0 : Math.min(voci.length - 1, this._hover + 1));
+      } else if (ev.key === "ArrowLeft") {
+        ev.preventDefault();
+        mostra(this._hover === null ? voci.length - 1 : Math.max(0, this._hover - 1));
+      }
+    });
+    svg.addEventListener("blur", nascondi);
     if (this._hover !== null && this._hover < voci.length) mostra(this._hover);
     else nascondi();
   }
@@ -838,12 +928,16 @@ const STILE = `
   ha-alert { display: block; }
   [hidden] { display: none !important; }
 
+  .header, .hero, .fact {
+    appearance: none; background: none; border: 0; font: inherit; color: inherit;
+    text-align: start; padding: 0; margin: 0; width: 100%; box-sizing: border-box;
+  }
   .header {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 16px 0; cursor: pointer; outline: none;
     border-radius: var(--ha-card-border-radius, var(--ha-border-radius-lg, 12px));
   }
-  .header:focus-visible, .hero:focus-visible, .fact:focus-visible {
+  .header:focus-visible, .hero:focus-visible, .fact:focus-visible, svg:focus-visible {
     box-shadow: inset 0 0 0 2px var(--acegas-accent);
   }
   .icon {
@@ -912,7 +1006,7 @@ const STILE = `
   }
 
   .chart { position: relative; min-height: 192px; margin: 0 -4px; touch-action: pan-y; }
-  svg { display: block; overflow: visible; }
+  svg { display: block; overflow: visible; outline: none; border-radius: var(--ha-border-radius-md, 8px); }
   svg text { font-size: 12px; fill: var(--primary-text-color); }
   svg .ylab { text-anchor: end; }
   svg .unita { fill: var(--secondary-text-color); }
@@ -973,18 +1067,37 @@ const caricaHaForm = async () => {
 };
 
 class AcegasContatoreCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this._schemaCache = this._schema();
+    this._connected = false;
+    this._ultimoStatoForm = "";
+  }
+
   set hass(hass) {
     this._hass = hass;
+    if (this._form) this._form.hass = hass;
     this._render();
   }
 
   setConfig(config) {
     this._config = config;
+    this._ultimoStatoForm = "";
     this._render();
   }
 
   connectedCallback() {
-    caricaHaForm().then(() => customElements.whenDefined("ha-form")).then(() => this._render());
+    this._connected = true;
+    caricaHaForm()
+      .then(() => customElements.whenDefined("ha-form"))
+      .then(() => {
+        if (this._connected) this._render();
+      })
+      .catch(() => {});
+  }
+
+  disconnectedCallback() {
+    this._connected = false;
   }
 
   _schema() {
@@ -1003,9 +1116,13 @@ class AcegasContatoreCardEditor extends HTMLElement {
   }
 
   _render() {
-    if (!this._hass || !this._config || !customElements.get("ha-form")) return;
+    if (!this._connected || !this._hass || !this._config || !customElements.get("ha-form")) return;
+    const etichette = { device_id: "ed_device", name: "ed_name", icon: "ed_icon", decimals: "ed_decimals" };
     if (!this._form) {
       this._form = document.createElement("ha-form");
+      this._form.schema = this._schemaCache;
+      this._form.computeLabel = (s) => traduci(this._hass, etichette[s.name] || s.name);
+      this._form.computeHelper = (s) => (s.name === "decimals" ? traduci(this._hass, "ed_decimals_helper") : undefined);
       this._form.addEventListener("value-changed", (ev) => {
         const config = { ...ev.detail.value };
         // An emptied field leaves the option out; 'view' is from the first version.
@@ -1015,12 +1132,13 @@ class AcegasContatoreCardEditor extends HTMLElement {
       });
       this.appendChild(this._form);
     }
-    const etichette = { device_id: "ed_device", name: "ed_name", icon: "ed_icon", decimals: "ed_decimals" };
     this._form.hass = this._hass;
-    this._form.data = { device_id: trovaContatori(this._hass)[0]?.deviceId, ...this._config };
-    this._form.schema = this._schema();
-    this._form.computeLabel = (s) => traduci(this._hass, etichette[s.name] || s.name);
-    this._form.computeHelper = (s) => (s.name === "decimals" ? traduci(this._hass, "ed_decimals_helper") : undefined);
+    const predefinito = trovaContatori(this._hass)[0]?.deviceId || "";
+    const firma = `${lingua(this._hass)}|${predefinito}|${JSON.stringify(this._config)}`;
+    if (firma !== this._ultimoStatoForm) {
+      this._ultimoStatoForm = firma;
+      this._form.data = { device_id: predefinito || undefined, ...this._config };
+    }
   }
 }
 

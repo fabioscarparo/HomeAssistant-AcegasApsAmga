@@ -88,3 +88,76 @@ def test_l_impronta_cambia_col_file(tmp_path):
     prima = lovelace_card.impronta_file(card)
     card.write_text("console.log(2);", encoding="utf-8")
     assert lovelace_card.impronta_file(card) != prima
+
+
+async def test_file_mancante_non_blocca_setup(hass, tmp_path):
+    hass.http = MagicMock(async_register_static_paths=AsyncMock())
+    hass.config.components.add("frontend")
+    with patch.object(lovelace_card, "PERCORSO_FILE", tmp_path / "inesistente.js"):
+        await lovelace_card.async_registra_card(hass)
+    assert not hass.data.get(lovelace_card._CHIAVE_REGISTRATA)
+    hass.http.async_register_static_paths.assert_not_awaited()
+
+
+@pytest.mark.skipif(which("node") is None, reason="node non installato")
+def test_logica_card_runtime():
+    script = f"""
+const fs = require("fs");
+const vm = require("vm");
+const code = fs.readFileSync({str(lovelace_card.PERCORSO_FILE)!r}, "utf8");
+const defined = new Map();
+const sandbox = {{
+  console, Intl, Date, Math, Number, String, Array, Object, Map, Set, Promise, JSON,
+  setTimeout, clearTimeout,
+  HTMLElement: class {{ attachShadow() {{ return {{ innerHTML: "", querySelector: () => null, querySelectorAll: () => [] }}; }} }},
+  CustomEvent: class {{ constructor(t, d) {{ this.type = t; this.detail = d; }} }},
+  ResizeObserver: class {{ observe() {{}} disconnect() {{}} }},
+  document: {{ addEventListener() {{}}, removeEventListener() {{}}, createElement: () => ({{}}) }},
+  navigator: {{ language: "it" }},
+  history: {{ pushState() {{}} }},
+  getComputedStyle: () => ({{ getPropertyValue: () => "#00bcd4" }}),
+  window: {{
+    customElements: {{ get: (k) => k === "home-assistant" ? true : defined.get(k), define: (k, v) => defined.set(k, v), whenDefined: () => Promise.resolve() }},
+    dispatchEvent() {{}},
+  }},
+}};
+sandbox.globalThis = sandbox;
+vm.runInNewContext(code + "\\n;globalThis.__exp = {{ traduci, AcegasContatoreCard }};", sandbox);
+const {{ traduci, AcegasContatoreCard }} = sandbox.__exp;
+
+// 1. traduci safely handles '$' replacement sequences
+const t = traduci({{ locale: {{ language: "it" }} }}, "period_line", {{ from: "1 gen", to: "2 gen", value: "$& 5 m³", days: "2" }});
+if (!t.includes("$& 5 m³")) throw new Error("traduci mangled $&: " + t);
+
+// 2. _daPagare reads domiciliata per unpaid bill, not from the newest bill
+const card = new AcegasContatoreCard();
+card._config = {{}};
+card._contatori = [{{ deviceId: "d1", entita: {{ lettura: "s.l", bolletta: "s.b", da_pagare: "s.dp", scadenza_bolletta: "s.sc" }} }}];
+card._hass = {{
+  config: {{ time_zone: "Europe/Rome" }},
+  locale: {{ language: "it" }},
+  states: {{
+    "s.l": {{ state: "10", attributes: {{ device_class: "water" }} }},
+    "s.b": {{
+      state: "30",
+      attributes: {{
+        domiciliata: true,
+        bollette: [
+          {{ numero: "2", emissione: "2026-10-01", scadenza: "2026-10-20", importo: 30, residuo: 0, stato: "paid", domiciliata: true }},
+          {{ numero: "1", emissione: "2026-06-01", scadenza: "2026-12-20", importo: 40, residuo: 40, stato: "unpaid", domiciliata: false }},
+        ],
+      }},
+    }},
+    "s.dp": {{ state: "40", attributes: {{}} }},
+    "s.sc": {{ state: "2026-12-20", attributes: {{}} }},
+  }},
+}};
+const conto = card._daPagare();
+if (conto.domiciliata !== false) throw new Error("domiciliata should be false for unpaid bill");
+
+// 3. Explicit missing device_id returns null instead of falling back to another meter
+card._config = {{ device_id: "rimosso" }};
+if (card._contatore !== null) throw new Error("missing device_id must not fall back");
+"""
+    esito = subprocess.run(["node", "-e", script], capture_output=True, text=True)
+    assert esito.returncode == 0, esito.stderr

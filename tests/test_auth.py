@@ -81,7 +81,7 @@ async def test_login_completo():
     assert token.refresh_token == "RT1"
     assert token.id_utente == "utente-1"
     assert token.valido()
-    assert sessione.cookie_jar.pulito == ["login.acegasapsamga.it"]
+    assert sessione.cookie_jar.svuotato == 1
 
     authorize, password, conferma, richiesta_token = sessione.richieste
     parametri = parse_qs(urlsplit(authorize["url"]).query)
@@ -164,3 +164,40 @@ def test_id_utente_da_token_non_valido():
 async def test_cookie_jar_senza_virgolette():
     # B2C answers 400 to the password if its cookies come back quoted.
     assert auth.nuovo_cookie_jar()._quote_cookie is False
+
+
+def test_estrai_settings_minificato_e_con_caratteri_speciali():
+    html = (
+        '<script>var SETTINGS={"csrf":"C1","transId":"T1","note":"a};\\nb"};'
+        'var OTHER=1;</script>'
+    )
+    settings = auth.estrai_settings(html)
+    assert settings["csrf"] == "C1"
+    assert settings["transId"] == "T1"
+    assert settings["note"] == "a};\nb"
+
+
+async def test_errore_503_su_conferma_non_e_passaggio_inatteso():
+    sessione = SessioneB2C(conferma=RispostaFinta(503, "<html>Service Unavailable</html>"))
+    with pytest.raises(auth.RispostaInattesa, match="503"):
+        await auth.AuthClient(sessione).async_login("utente@example.com", "segreta")
+
+
+async def test_errore_transitorio_nel_redirect_e_risposta_inattesa():
+    sessione = SessioneB2C(
+        errore={"error": "temporarily_unavailable", "error_description": "busy"}
+    )
+    with pytest.raises(auth.RispostaInattesa, match="busy"):
+        await auth.AuthClient(sessione).async_login("utente@example.com", "segreta")
+
+
+async def test_refresh_conserva_il_vecchio_refresh_token_e_gestisce_expires_in_non_valido():
+    sessione = SessioneFinta()
+    sessione.aggiungi(
+        "POST",
+        B2C_TOKEN_URL,
+        RispostaFinta(200, {"access_token": ACCESS_TOKEN, "expires_in": "NaN"}),
+    )
+    token = await auth.AuthClient(sessione).async_refresh("RT1")
+    assert token.refresh_token == "RT1"
+    assert token.valido()

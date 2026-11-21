@@ -8,6 +8,7 @@ No Home Assistant imports.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -22,9 +23,12 @@ STATI = {
     "PAID": "paid",
     "PAID_SBF": "paid",
     "NOT_TO_PAY": "not_to_pay",
+    "UNDERTHRESHOLD": "not_to_pay",
     "CREDIT": "credit",
     "REVERSED": "reversed",
     "REVERSED_PARTIAL": "reversed",
+    "PARTIALLY_REVERSED": "reversed",
+    "INSTALLED": "installment",
 }
 STATO_ALTRO = "other"
 OPZIONI_STATO = [*dict.fromkeys(STATI.values()), STATO_ALTRO]
@@ -62,12 +66,16 @@ class Bolletta:
 
     @classmethod
     def da_dict(cls, dati: dict[str, Any]) -> Bolletta:
+        importo = _numero(dati["importo"])
+        if importo is None:
+            raise ValueError(f"importo non valido: {dati['importo']!r}")
+        residuo = _numero(dati.get("residuo"))
         return cls(
             numero=str(dati["numero"]),
             emissione=date.fromisoformat(dati["emissione"]),
             scadenza=date.fromisoformat(dati["scadenza"]) if dati.get("scadenza") else None,
-            importo=float(dati["importo"]),
-            residuo=float(dati.get("residuo") or 0),
+            importo=importo,
+            residuo=residuo if residuo is not None else 0.0,
             stato=dati.get("stato") or STATO_ALTRO,
             domiciliata=bool(dati.get("domiciliata")),
             contratti=tuple(dati.get("contratti") or ()),
@@ -75,49 +83,58 @@ class Bolletta:
 
 
 def _numero(valore: Any) -> float | None:
+    if isinstance(valore, bool):
+        return None
     try:
-        return round(float(valore), 2)
+        numero = float(valore)
     except (TypeError, ValueError):
         return None
+    if not math.isfinite(numero):
+        return None
+    return round(numero, 2)
 
 
 def _stato(grezza: dict[str, Any]) -> str:
+    if grezza.get("installmentParent"):
+        return "installment"
     stato = grezza.get("paymentStatus")
     if not stato:
         macro = (grezza.get("paymentStatusTranscoding") or {}).get("macroStatus") or {}
         stato = macro.get("name")
-    return STATI.get(str(stato).upper(), STATO_ALTRO) if stato else STATO_ALTRO
+    mappato = STATI.get(str(stato).upper(), STATO_ALTRO) if stato else STATO_ALTRO
+    if grezza.get("underthreshold") and mappato in STATI_DA_PAGARE:
+        return "not_to_pay"
+    return mappato
 
 
 def _contratti(grezza: dict[str, Any]) -> tuple[str, ...]:
     codici = [c.get("contractId") for c in grezza.get("contractServiceTypeList") or [] if isinstance(c, dict)]
     codici.append(grezza.get("contractId"))
-    return tuple(dict.fromkeys(str(c) for c in codici if c))
+    return tuple(dict.fromkeys(str(c).strip() for c in codici if c and str(c).strip()))
 
 
 def estrai_bollette(grezze: list[dict[str, Any]]) -> list[Bolletta]:
-    """Bills of the list, newest first. Items without number, date or
-    amount are skipped."""
-    bollette = []
+    """Bills of the list, newest first, deduplicated by number. Items without
+    number, date or amount are skipped."""
+    viste: dict[str, Bolletta] = {}
     for grezza in grezze:
         emissione = giorno_da_ms(grezza.get("emissionDate"))
         importo = _numero(grezza.get("amount"))
-        if not grezza.get("id") or emissione is None or importo is None:
+        numero = str(grezza["id"]).strip() if grezza.get("id") else ""
+        if not numero or emissione is None or importo is None or numero in viste:
             continue
         residuo = _numero(grezza.get("residual"))
-        bollette.append(
-            Bolletta(
-                numero=str(grezza["id"]).strip(),
-                emissione=emissione,
-                scadenza=giorno_da_ms(grezza.get("expireDate")),
-                importo=importo,
-                residuo=residuo if residuo is not None else 0.0,
-                stato=_stato(grezza),
-                domiciliata=bool(grezza.get("domicilied")),
-                contratti=_contratti(grezza),
-            )
+        viste[numero] = Bolletta(
+            numero=numero,
+            emissione=emissione,
+            scadenza=giorno_da_ms(grezza.get("expireDate")),
+            importo=importo,
+            residuo=residuo if residuo is not None else 0.0,
+            stato=_stato(grezza),
+            domiciliata=bool(grezza.get("domicilied")),
+            contratti=_contratti(grezza),
         )
-    return ordina(bollette)
+    return ordina(list(viste.values()))
 
 
 def ordina(bollette: list[Bolletta]) -> list[Bolletta]:
