@@ -24,6 +24,15 @@ CONTRATTO = {
     "modello": "Cont.acqDN20volumL190MIDNB-IoT",
     "indirizzo": "VIA DI ESEMPIO 1, TRIESTE TS, 34100 Italia",
     "stato": "ACTIVE",
+    "attivazione": "2025-11-27",
+    "uso": "1101-Domestico",
+    "mercato": "Regolamentato",
+    "raggruppamento": "200000000001",
+    "installazione": "2025-11-27",
+    "calibro": "A1302",
+    "unita": "mc",
+    "tipo_contatore": "MONO",
+    "autolettura_disponibile": True,
 }
 
 
@@ -63,7 +72,14 @@ class RispostaFinta:
         self.headers = headers or {}
 
     async def text(self) -> str:
+        if isinstance(self._corpo, (bytes, bytearray)):
+            return self._corpo.decode("utf-8", errors="replace")
         return self._corpo if isinstance(self._corpo, str) else json.dumps(self._corpo)
+
+    async def read(self) -> bytes:
+        if isinstance(self._corpo, (bytes, bytearray)):
+            return bytes(self._corpo)
+        return (await self.text()).encode("utf-8")
 
     async def json(self, content_type=None) -> Any:
         return json.loads(await self.text())

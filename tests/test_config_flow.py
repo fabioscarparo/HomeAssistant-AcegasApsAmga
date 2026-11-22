@@ -1,4 +1,4 @@
-"""Config flow: login, contract choice, errors, reauth and options."""
+"""Config flow: login, multi-service contract choice, errors, reauth and options."""
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -16,6 +16,9 @@ from .conftest import CONTRATTO
 
 SECONDO = dict(CONTRATTO, contratto="1000000002", pod="0500000000000002", stato="DEACTIVE")
 GAS = dict(CONTRATTO, contratto="2000000001", servizio="GAS", pod="00880000000001")
+LUCE = dict(CONTRATTO, contratto="3000000001", servizio="ELECTRIC", pod="IT001E00000001")
+AMBIENTE = dict(CONTRATTO, contratto="4000000001", servizio="ENVIRONMENT", pod="TARI0001")
+ALTRO = dict(CONTRATTO, contratto="5000000001", servizio="OTHER", pod="OTH001")
 CREDENZIALI = {CONF_EMAIL: " utente@example.com ", CONF_PASSWORD: "segreta"}
 
 
@@ -43,7 +46,7 @@ async def _inizia(hass):
 async def test_un_contratto_crea_subito_la_voce(hass):
     risultato = await _inizia(hass)
     assert risultato["type"] is FlowResultType.FORM
-    with _accedi(CONTRATTO, GAS):
+    with _accedi(CONTRATTO, ALTRO):
         risultato = await hass.config_entries.flow.async_configure(risultato["flow_id"], CREDENZIALI)
 
     assert risultato["type"] is FlowResultType.CREATE_ENTRY
@@ -52,9 +55,9 @@ async def test_un_contratto_crea_subito_la_voce(hass):
     assert risultato["result"].unique_id == "utente-1"
 
 
-async def test_piu_contratti_si_sceglie(hass):
+async def test_piu_contratti_multiservizio_si_sceglie(hass):
     risultato = await _inizia(hass)
-    with _accedi(CONTRATTO, SECONDO):
+    with _accedi(CONTRATTO, GAS, LUCE, AMBIENTE, SECONDO):
         risultato = await hass.config_entries.flow.async_configure(risultato["flow_id"], CREDENZIALI)
     assert risultato["step_id"] == "contratti"
 
@@ -64,10 +67,14 @@ async def test_piu_contratti_si_sceglie(hass):
     assert risultato["errors"] == {"base": "nessuna_scelta"}
 
     risultato = await hass.config_entries.flow.async_configure(
-        risultato["flow_id"], {CONF_CONTRATTI: ["1000000002"]}
+        risultato["flow_id"], {CONF_CONTRATTI: ["2000000001", "3000000001", "4000000001"]}
     )
     assert risultato["type"] is FlowResultType.CREATE_ENTRY
-    assert risultato["data"][CONF_CONTRATTI] == [SECONDO]
+    assert [c["servizio"] for c in risultato["data"][CONF_CONTRATTI]] == [
+        "GAS",
+        "ELECTRIC",
+        "ENVIRONMENT",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -86,13 +93,13 @@ async def test_errori_di_accesso(hass, errore, chiave):
     assert risultato["errors"] == {"base": chiave}
 
 
-async def test_solo_gas(hass):
+async def test_solo_servizio_non_supportato(hass):
     risultato = await _inizia(hass)
-    with _accedi(GAS):
+    with _accedi(ALTRO):
         risultato = await hass.config_entries.flow.async_configure(risultato["flow_id"], CREDENZIALI)
     assert risultato["type"] is FlowResultType.ABORT
     assert risultato["reason"] == "nessun_contratto"
-    assert risultato["description_placeholders"] == {"servizi": "GAS"}
+    assert risultato["description_placeholders"] == {"servizi": "OTHER"}
 
 
 async def test_account_gia_configurato(hass, entry):

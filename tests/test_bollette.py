@@ -1,4 +1,4 @@
-"""Bills: parsing of the portal's list, amount due and next due date."""
+"""Bills: parsing of the portal's list, extra fields, payment dates and due dates."""
 from __future__ import annotations
 
 from datetime import date
@@ -12,18 +12,68 @@ def _bollette() -> list[bl.Bolletta]:
     return bl.estrai_bollette(carica("bollette.json")["list"])
 
 
-def test_estrai_bollette():
+def test_estrai_bollette_e_campi_estesi():
     bollette = _bollette()
     assert [b.numero for b in bollette] == ["0000000000000103", "0000000000000102", "0000000000000101"]
     ultima = bollette[0]
-    # Dates are midnight in Italy: 13 November, due 9 December.
     assert ultima.emissione == date(2026, 11, 13)
     assert ultima.scadenza == date(2026, 12, 9)
     assert (ultima.importo, ultima.residuo) == (48.2, 48.2)
     assert ultima.stato == "unpaid"
+    assert ultima.stato_dettaglio == "Pagamento in ricezione"
+    assert ultima.pdf_disponibile is True
+    assert ultima.pagopa is True
     assert ultima.domiciliata
     assert ultima.contratti == ("1000000001",)
-    assert [b.stato for b in bollette[1:]] == ["paid", "paid"]
+    assert ultima.importi_servizi_dict == {"WATER": 48.2}
+    # Bill 101 has two WATER entries in companyServices (44.1 + 42.3 = 86.4)
+    assert bollette[2].importo_servizio("WATER") == 86.4
+
+
+def test_bolletta_multiservizio_e_bolletta_web():
+    grezza = dict(
+        carica("bollette.json")["list"][0],
+        id="MULTI1",
+        amount=130.5,
+        deliveryTypes=["EMAIL", "XML"],
+        companyServices=[
+            {"type": "WATER", "amount": 40.0, "reverserBillId": "ST1"},
+            {"type": "GAS", "amount": 90.5},
+        ],
+    )
+    [b] = bl.estrai_bollette([grezza])
+    assert b.bolletta_web is True
+    assert b.importo_servizio("WATER") == 40.0
+    assert b.importo_servizio("GAS") == 90.5
+    assert b.importo_servizio("ELECTRIC") == 130.5
+    assert b.stornata_da == "ST1"
+
+
+def test_applica_pagamenti_e_rimborsi():
+    bollette = _bollette()
+    pagamenti = [
+        {
+            "id": "INV1",
+            "amount": 31.75,
+            "paymentStatus": "PAYMENT",
+            "paymentDate": 1786053600000,  # 2026-08-07
+            "billIds": ["0000000000000102"],
+        },
+        {
+            "id": "REF1",
+            "amount": 12.5,
+            "paymentStatus": "REFUND",
+            "paymentDate": 1786140000000,  # 2026-08-08
+            "paymentType": "Bonifico",
+        },
+    ]
+    arricchite = bl.applica_pagamenti(bollette, pagamenti)
+    mappa = {b.numero: b for b in arricchite}
+    assert mappa["0000000000000102"].data_pagamento == date(2026, 8, 7)
+    assert mappa["0000000000000103"].data_pagamento is None
+
+    rimborsi = bl.estrai_rimborsi(pagamenti)
+    assert rimborsi == [{"data": "2026-08-08", "importo": 12.5, "tipo": "Bonifico"}]
 
 
 def test_da_pagare_e_scadenza():
@@ -64,9 +114,24 @@ def test_bollette_del_contratto():
     assert bl.del_contratto([ultima, altro, senza], "1000000001") == [ultima, senza]
 
 
-def test_salvataggio():
+def test_salvataggio_e_retrocompatibilita_store():
     for bolletta in _bollette():
         assert bl.Bolletta.da_dict(bolletta.come_dict()) == bolletta
+    # Legacy v0.3.0 / v0.4.0-beta.1 dict without new optional fields loads cleanly.
+    vecchio = {
+        "numero": "B1",
+        "emissione": "2026-01-10",
+        "scadenza": "2026-02-10",
+        "importo": 20.0,
+        "residuo": 0.0,
+        "stato": "paid",
+        "domiciliata": True,
+        "contratti": ["C1"],
+    }
+    caricata = bl.Bolletta.da_dict(vecchio)
+    assert caricata.numero == "B1"
+    assert caricata.data_pagamento is None
+    assert caricata.importi_servizi == ()
 
 
 def test_stati_aggiuntivi_duplicati_e_nan():

@@ -7,8 +7,8 @@
 </p>
 
 <p align="center">
-  <strong>Your AcegasApsAmga water consumption in Home Assistant:<br>
-  the whole reading history, the Energy Dashboard, your bills and a meter card.</strong>
+  <strong>Your AcegasApsAmga utilities in Home Assistant:<br>
+  water, gas, electricity, district heating, waste/TARI, Energy Dashboard, bills, calendar and dedicated cards.</strong>
 </p>
 
 <p align="center">
@@ -19,22 +19,30 @@
 </p>
 
 A custom [Home Assistant](https://www.home-assistant.io/) integration for
-**AcegasApsAmga**, the Gruppo Hera utility of North-East Italy. It reads your
-water meter readings from the **Servizi Online** portal and imports them as
-long-term statistics, ready for the Energy Dashboard. It also follows your
-bills.
+**AcegasApsAmga**, the Gruppo Hera utility of North-East Italy. It connects to
+the **Servizi Online** portal and imports readings, consumption statistics,
+bills, self-reading windows, waste disposals (TARI/TCP), notifications and
+account alerts.
 
-- **Energy Dashboard**: water consumption added with a single action.
-- **Whole history**: every reading since the start of the contract, imported
-  at setup.
-- **Sensors**: meter reading, last period consumption, average daily
-  consumption and next self-reading window.
-- **Bills**: amount of the last bill, amount due, due date and payment
-  status, ready for a reminder automation.
-- **Meter card**: average daily consumption of each reading period, year by
-  year, with the bill to pay and the year's totals.
-- **Automatic updates**: new readings and corrections are picked up on their
-  own.
+- **Multi-service support**: Water (`WATER`), Gas (`GAS`), Electricity
+  (`ELECTRIC` with F1/F2/F3 time-of-use bands), District Heating (`HEATING`)
+  and Waste/TARI (`ENVIRONMENT`).
+- **Energy Dashboard**: water, gas and electricity grid consumption added with
+  a single action.
+- **Whole history**: every real reading since the start of the contract,
+  imported at setup and updated incrementally.
+- **Bills & payments**: amount due, due date, detailed portal status, actual
+  payment dates, service splits on grouped bills, paperless flag and PDF
+  download action.
+- **Self-readings & Calendar**: countdown to the next window, native Home
+  Assistant calendar entity for self-reading windows and bill due dates, and an
+  action to submit self-readings directly from Home Assistant.
+- **Account health**: 180-day password expiration diagnostic sensor with Repair
+  Issues, new terms check, and unread portal notifications (including planned
+  water outage alert status).
+- **4 built-in Lovelace cards**: dedicated cards for Water/Gas/Heating meters,
+  Electricity (F1/F2/F3), Waste/TARI, and cross-contract Bills & Account
+  overview.
 - **Italian and English**, following each user's language.
 
 <picture>
@@ -42,17 +50,13 @@ bills.
   <img alt="The meter card, with simulated data" src="docs/images/contatore-card-light.svg">
 </picture>
 
-> [!NOTE]
-> Gas is planned: the code is ready, but it stays off until it can be tested
-> with a real gas contract.
-
 ## Quick start
 
 1. [Install](#installation) the integration with HACS and restart Home
    Assistant.
 2. [Set it up](#setup) with your Servizi Online email and password.
-3. [Add the water consumption](#energy-dashboard) to the Energy Dashboard with
-   the **Configure Energy dashboard** action.
+3. [Add consumption](#energy-dashboard) to the Energy Dashboard with the
+   **Configure Energy dashboard** action.
 
 ## Installation
 
@@ -61,14 +65,14 @@ bills.
 - Home Assistant 2025.10 or later
 - [HACS](https://hacs.xyz/)
 - An account on the [AcegasApsAmga Servizi Online](https://servizionline.acegasapsamga.it/)
-  with at least one water contract
+  with at least one supported contract
 
 ### Install with HACS
 
 The integration is not in the default HACS store yet: add it as a custom
 repository.
 
-1. Open **HACS**, then **⋮ → Custom repositories**.
+1. Open **HACS**, then **⋮ -> Custom repositories**.
 2. Add `https://github.com/fabioscarparo/HomeAssistant-AcegasApsAmga` with
    type **Integration**.
 3. Search for **AcegasApsAmga**, open it and select **Download**.
@@ -81,137 +85,162 @@ your Home Assistant configuration, then restart Home Assistant.
 
 ## Setup
 
-1. Go to **Settings → Devices & services → Add integration** and search for
+1. Go to **Settings -> Devices & services -> Add integration** and search for
    **AcegasApsAmga**, or open
    [this link](https://my.home-assistant.io/redirect/config_flow_start/?domain=acegasapsamga).
 2. Enter the email and password of your **Servizi Online** account.
-3. If the account has more than one water contract, choose the ones to follow.
+3. If the account has more than one supported contract, choose the ones to
+   follow.
 
-Each contract becomes a device.
+Each contract becomes a device, alongside an account device for password
+expiration and portal notifications.
 
 ### Authentication
 
 The password is stored in Home Assistant: portal sessions last at most one
-day, so the integration signs in again on its own. If you change the password,
-Home Assistant asks for the new one.
+day, so the integration signs in again on its own. Portal passwords expire
+every 180 days: Home Assistant raises a Repair Issue starting 15 days before
+expiration so you can update your password before access stops working.
 
 ### Managing contracts
 
-To add or remove contracts: **Settings → Devices & services → AcegasApsAmga →
-Configure**. Removing a contract keeps the statistics already imported.
+To add or remove contracts: **Settings -> Devices & services -> AcegasApsAmga
+-> Configure**. Removing a contract cleans up its device and entities while
+keeping previously imported statistics.
 
 ## Energy Dashboard
 
 ### Automatic configuration
 
 Run the **AcegasApsAmga: Configure Energy dashboard** action, from **Developer
-tools → Actions** or with
+tools -> Actions** or with
 [this link](https://my.home-assistant.io/redirect/developer_call_service/?service=acegasapsamga.configura_energy_dashboard).
-It adds the water consumption of every configured contract, and never changes
-or duplicates sources that already exist.
+It adds water, gas and electricity grid sources for every configured contract,
+and never changes or duplicates sources that already exist.
 
 ### Manual configuration
 
-Go to **Settings → Dashboards → Energy → Water consumption → Add water
-source** and choose the statistic `acegasapsamga:<pod>_acqua`, where `<pod>`
-is the supply point code shown on the device.
+Select the statistic `acegasapsamga:<pod>_acqua`, `acegasapsamga:<pod>_gas`,
+or `acegasapsamga:<pod>_luce` in **Settings -> Dashboards -> Energy**.
 
 ### How consumption is calculated
 
-AcegasApsAmga reads water meters about **once a month**, in whole cubic
-metres. A reading gives the consumption of a whole period, not of each day:
-the integration spreads it evenly over the days between two real readings,
-like the daily average on the portal.
+AcegasApsAmga reads meters periodically (usually once a month). The integration
+spreads each real period evenly over its hours, matching the portal's daily
+average:
 
-- **Day and week views** show the average of the period, not a measured
-  daily value.
-- **The total between two readings** matches the meter exactly. A month's
-  total is a share of the periods it overlaps, because readings rarely fall
-  on the first of the month.
-- **Only real readings count.** Estimated readings are billing estimates and
-  are ignored.
-- **A reading dated D includes day D**, as in the portal's billing periods.
-- **The data ends with the last real reading**: nothing is projected. When
-  the next reading arrives, the days in between are filled in.
+- **Only real readings count.** Estimated readings and rejected (`KO`) or
+  pending (`IN_CHARGE`) self-readings are ignored.
+- **A reading dated D includes day D**, matching the portal's billing periods.
+- **The data ends with the last real reading**: nothing is projected.
+- **Daily reads**: when the profile has `enabledDailyReads: true`, recent daily
+  consumption rows are also exposed in the `consumi_giornalieri` attribute.
 
-The **Last reading date** sensor tells up to which day the Energy Dashboard
-has data.
+## Entities
 
-> [!NOTE]
-> Costs are not supported yet: Home Assistant does not accept a price per m³
-> on imported statistics, and bills do not say which days of consumption they
-> cover.
+### Metered contracts (Water, Gas, Electricity, District Heating)
 
-## Sensors
-
-Each contract is a device with these sensors:
-
-| Sensor | Value |
+| Entity | Value |
 |---|---|
-| **Meter reading** | Last real reading, in m³ |
-| **Last reading date** | Day of that reading: the Energy Dashboard has data up to here |
-| **Last period consumption** | m³ from the day after the previous real reading to the day of the last one |
-| **Average daily consumption** | Litres a day in that period |
-| **Next self-reading** | First day of the next window to send a self-reading; the last day is in the attributes |
-| **Last bill** | Amount of the newest bill, in €; number, issue date, due date and the latest bills in the attributes |
-| **Amount due** | What is left to pay on the bills not paid yet |
-| **Bill due date** | Earliest due date of the bills still to pay; unknown when nothing is due |
-| **Last bill status** | Unpaid, overdue, partly paid, paid... |
+| **Meter reading** | Last real reading (`m³`, `kWh`, or `MWh`), with `fasce` (F1/F2/F3 for multi-band electricity), meter metadata and active VAS / Diario dei Consumi flags |
+| **Last reading date** | Day of the last real reading |
+| **Last period consumption** | Consumption between the last two real readings (plus `fasce` split and `periodi`) |
+| **Average daily consumption** | `L/d` (water), `m³/d` (gas), `kWh/d` or `MWh/d` |
+| **Next self-reading** | Start of the next window (`fine`, `aperta`, `giorni_mancanti`, self-reading history; disabled by default on smart/tele-read meters) |
+| **Last bill** | Amount in EUR, detailed status, payment date, paperless flag, PDF availability and service split |
+| **Amount due** | Residual left to pay on open bills |
+| **Bill due date** | Earliest due date among unpaid bills |
+| **Last bill status** | Unpaid, overdue, partly paid, paid, credit, reversed, installment... |
+| **Calendar** | All upcoming self-reading windows and unpaid bill due dates |
 
-The meter sensors have no state class on purpose: the Energy Dashboard reads
-the imported statistics, where each reading falls on its own day.
+### Waste / TARI contracts (`ENVIRONMENT`)
 
-Bill sensors follow the portal: a bill paid by direct debit stays **Unpaid**
-until the bank pays it (the **Direct debit** attribute tells), and a bill that
-groups several contracts shows its whole amount.
+| Entity | Value |
+|---|---|
+| **Current year disposals** | Disposal count this year, with fraction split (`RSU`, `CARTA`, `VETRO`, `PLASTICA`, `ORGANICO`), monthly counts, previous year count and discounts |
+| **Current year waste volume** | Total conferred volume in litres (and previous year volume) |
+| **Active waste equipment** | Count and details of assigned bins, RFID cards and keys |
+| **Bill sensors & Calendar** | TARI bills and due dates |
 
-## Meter card
+### Account device
 
-The integration ships a card built around how AcegasApsAmga reads water
-meters. It registers itself, with no Lovelace resource to add by hand: open a
-dashboard, select **Edit dashboard → Add card** and search for
-**AcegasApsAmga · Meter** (**AcegasApsAmga · Contatore** in Italian).
+| Entity | Value |
+|---|---|
+| **Password expiration** (diagnostic) | Portal password expiration date (`giorni_rimanenti`, `rinnovo_richiesto`, `nuove_condizioni_accettate`) |
+| **Unread notifications** | Unread portal notifications count, latest notification and water outage alert (`WTR_FLT`) status |
 
-- **Litres a day** of the last reading period, next to the previous period:
-  a rise stands out at once, for example a leak or summer watering.
-- **Bill to pay**: amount and due date, only while there is one.
-- **One chart per year**: one bar per period between two real readings, as
-  wide as its days and as high as its daily average. It shows only what the
-  meter measured; the arrows move between years.
-- **At the bottom**: the year's total, daily average and bills.
+## Actions
 
-Tap the header for the meter reading's details, the main number for the
-daily average's, the previous period for the reading periods' and the bill
-for the last bill's. The card follows the theme, light and dark mode, the
-language and the number format of the user profile.
+| Action | Description |
+|---|---|
+| `acegasapsamga.configura_energy_dashboard` | Adds water, gas and electricity statistics to the Energy Dashboard |
+| `acegasapsamga.invia_autolettura` | Submits a meter self-reading (`valore` for water/gas/heating/mono electricity, or `f1`/`f2`/`f3` for multi-band electricity). Handles portal codes 692 and 695 cleanly |
+| `acegasapsamga.scarica_bolletta` | Downloads a bill PDF (summary or detailed `v2`) to a safe `.pdf` path inside Home Assistant's config directory (default: `www/acegasapsamga/bolletta_<number>.pdf`) |
+
+## Lovelace cards
+
+All four cards register automatically with no manual Lovelace resource needed.
+Open **Edit dashboard -> Add card** and search for **AcegasApsAmga**:
+
+1. **`custom:acegasapsamga-contatore-card`** (*Meter: Water / Gas / Heating*):
+   daily average, previous period, open/upcoming self-reading countdown, annual
+   period chart and yearly summary (with optional `show_bills: true`).
+2. **`custom:acegasapsamga-luce-card`** (*Electricity F1/F2/F3*): daily kWh,
+   F1/F2/F3 time-of-use split bar and stacked annual chart by band (with
+   optional `show_bills: true`).
+3. **`custom:acegasapsamga-rifiuti-card`** (*Waste / TARI*): current year
+   disposals and volume vs previous year, active equipment summary, interactive
+   waste-fraction bar and stacked 12-month disposal chart, and discounts (with
+   optional `show_bills: true`).
+4. **`custom:acegasapsamga-bollette-card`** (*Bills & Account*): cross-contract
+   bills overview (deduplicating grouped `PLICO` bills), utility filter chips,
+   bills grouped by utility service (Water, Gas, Electricity, Heating, Waste,
+   Combined bills) or sorted chronologically (`group_by`), actual payment dates,
+   unread portal notifications and password expiration alerts.
 
 <details>
-<summary>YAML configuration</summary>
+<summary>YAML configuration examples</summary>
 
 ```yaml
+# Water, Gas or District Heating meter
 type: custom:acegasapsamga-contatore-card
-device_id: <device id>   # optional: defaults to the first meter
+device_id: <device id>   # optional
 name: Water              # optional
 icon: mdi:water          # optional
-decimals: 2              # optional: 0 to 3, for values in m³
+decimals: 2              # optional (0-3)
+show_bills: false        # optional (default false)
+
+# Electricity (F1/F2/F3)
+type: custom:acegasapsamga-luce-card
+device_id: <device id>   # optional
+show_bills: false        # optional (default false)
+
+# Waste / TARI
+type: custom:acegasapsamga-rifiuti-card
+device_id: <device id>   # optional
+show_bills: false        # optional (default false)
+
+# Cross-contract Bills & Account
+type: custom:acegasapsamga-bollette-card
+device_id: <device id>   # optional: omit to aggregate all contracts
+group_by: service        # optional: service (default) | date
+max_bills: 6             # optional (1-50)
 ```
 
 </details>
 
 ### Frontend cache
 
-Right after installing or updating, the browser or the companion app can keep
-the previous frontend. If the card is missing or shows *Custom element doesn't
-exist*, reload the page (**Ctrl+Shift+R**, or **Cmd+Shift+R** on macOS) or
-reset the companion app's frontend cache.
+Right after installing or updating, reload the browser (**Ctrl+Shift+R**, or
+**Cmd+Shift+R** on macOS) or clear the companion app frontend cache if a newly
+added card does not appear immediately.
 
 ## Updates
 
-The integration checks the portal every **6 hours**, readings and bills
-together. When a new real reading arrives, it recalculates the whole series,
-so corrections published by AcegasApsAmga are applied too. If the portal does not answer, sensors and
-statistics keep their values and the integration tries again after 30
-minutes.
+The integration checks the portal every **6 hours**. New readings are appended
+incrementally to the Recorder, while historical corrections trigger a clean
+rewrite. If the portal is unreachable, cached data stays available and updates
+retry every 30 minutes.
 
 ## Troubleshooting
 
@@ -227,16 +256,15 @@ minutes.
 ### Reporting a problem
 
 Open an [issue](https://github.com/fabioscarparo/HomeAssistant-AcegasApsAmga/issues)
-with the message shown and the **diagnostics** file: **Settings → Devices &
-services → AcegasApsAmga → ⋮ → Download diagnostics**. It contains no email,
-password or token, and contract, supply point and meter codes are replaced by
-`CONTRATTO_1`, `POD_1`, `BOLLETTA_1`... Do not attach screenshots with
-personal data.
+with the message shown and the **diagnostics** file: **Settings -> Devices &
+services -> AcegasApsAmga -> ⋮ -> Download diagnostics**. It redacts emails,
+passwords, addresses, notification bodies and anonymizes all contract, POD,
+meter, equipment and bill numbers.
 
 ## Languages
 
-Entity names, setup, actions and errors follow each user's language, Italian
-or English. Device models and statistic names follow the server language.
+Entity names, setup, actions, repair issues, cards and errors follow each
+user's language (Italian or English).
 
 ## Contributing
 

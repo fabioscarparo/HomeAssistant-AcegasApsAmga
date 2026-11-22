@@ -29,12 +29,38 @@
           "reversed": "mdi:receipt-text-arrow-left",
           "installment": "mdi:receipt-text-arrow-right"
         }
+      },
+      "svuotamenti_rifiuti": {
+        "default": "mdi:trash-can"
+      },
+      "volume_rifiuti": {
+        "default": "mdi:delete-variant"
+      },
+      "dotazioni_rifiuti": {
+        "default": "mdi:card-account-details"
+      },
+      "scadenza_password": {
+        "default": "mdi:key-alert"
+      },
+      "notifiche": {
+        "default": "mdi:bell-badge-outline"
+      }
+    },
+    "calendar": {
+      "calendario": {
+        "default": "mdi:calendar-month"
       }
     }
   },
   "services": {
     "configura_energy_dashboard": {
       "service": "mdi:lightning-bolt-circle"
+    },
+    "invia_autolettura": {
+      "service": "mdi:counter"
+    },
+    "scarica_bolletta": {
+      "service": "mdi:file-pdf-box"
     }
   }
 }

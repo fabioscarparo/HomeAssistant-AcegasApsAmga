@@ -1,8 +1,8 @@
 """Diagnostics for bug reports.
 
-Safe to attach to a public issue: no email, password or token, and contract,
-supply point, meter, profile and bill numbers become CONTRATTO_1, POD_1,
-BOLLETTA_1...
+Safe to attach to a public issue: no email, password, token, address or
+notification body; contract, supply point, meter, profile, equipment and bill
+numbers become CONTRATTO_1, POD_1, CONTATORE_1, BOLLETTA_1, DOTAZIONE_1...
 """
 from __future__ import annotations
 
@@ -18,8 +18,21 @@ from homeassistant.loader import async_get_integration
 
 from .const import CONF_CONTRATTI, CONF_ID_UTENTE, DOMAIN
 
-DA_NASCONDERE = {CONF_EMAIL, CONF_PASSWORD, CONF_ID_UTENTE, "indirizzo"}
-CODICI = (("contratto", "CONTRATTO"), ("pod", "POD"), ("contatore", "CONTATORE"), ("profilo", "PROFILO"))
+DA_NASCONDERE = {
+    CONF_EMAIL,
+    CONF_PASSWORD,
+    CONF_ID_UTENTE,
+    "indirizzo",
+    "descrizione",
+    "sottotitolo",
+}
+CODICI = (
+    ("contratto", "CONTRATTO"),
+    ("pod", "POD"),
+    ("contatore", "CONTATORE"),
+    ("profilo", "PROFILO"),
+    ("raggruppamento", "RAGGRUPPAMENTO"),
+)
 
 
 def _aggiungi_sostituzione(sostituzioni: dict[str, str], codice: Any, etichetta: str) -> None:
@@ -83,31 +96,59 @@ async def async_get_config_entry_diagnostics(
     sostituzioni = _sostituzioni(entry, contratti)
     if coordinator is not None:
         dati_coordinator = coordinator.data or {}
-        # Also anonymize older meters from reading history and unconfigured contracts in grouped bills.
         prossimo_contatore = len(contratti) + 1
-        for dati in dati_coordinator.values():
-            for lettura in dati.letture:
-                if lettura.contatore and lettura.contatore not in sostituzioni:
-                    _aggiungi_sostituzione(sostituzioni, lettura.contatore, f"CONTATORE_{prossimo_contatore}")
-                    prossimo_contatore += 1
         prossimo_contratto = len(contratti) + 1
-        numeri = dict.fromkeys(b.numero for dati in dati_coordinator.values() for b in dati.bollette)
+        prossima_dotazione = 1
+        numeri_bollette: dict[str, None] = {}
+
         for dati in dati_coordinator.values():
+            for lettura in (*dati.letture, *dati.autoletture):
+                if lettura.contatore and lettura.contatore not in sostituzioni:
+                    _aggiungi_sostituzione(
+                        sostituzioni, lettura.contatore, f"CONTATORE_{prossimo_contatore}"
+                    )
+                    prossimo_contatore += 1
             for bolletta in dati.bollette:
+                numeri_bollette.setdefault(bolletta.numero, None)
+                if bolletta.stornata_da:
+                    numeri_bollette.setdefault(bolletta.stornata_da, None)
                 for codice_contratto in bolletta.contratti:
                     if codice_contratto not in sostituzioni:
                         _aggiungi_sostituzione(
                             sostituzioni, codice_contratto, f"CONTRATTO_{prossimo_contratto}"
                         )
                         prossimo_contratto += 1
-        for indice, numero in enumerate(numeri, start=1):
+            if dati.rifiuti:
+                for dot in dati.rifiuti.dotazioni:
+                    if dot.codice and dot.codice not in sostituzioni:
+                        _aggiungi_sostituzione(
+                            sostituzioni, dot.codice, f"DOTAZIONE_{prossima_dotazione}"
+                        )
+                        prossima_dotazione += 1
+                for sv in (
+                    *dati.rifiuti.svuotamenti_anno_corrente,
+                    *dati.rifiuti.svuotamenti_anno_precedente,
+                ):
+                    if sv.codice_dotazione and sv.codice_dotazione not in sostituzioni:
+                        _aggiungi_sostituzione(
+                            sostituzioni, sv.codice_dotazione, f"DOTAZIONE_{prossima_dotazione}"
+                        )
+                        prossima_dotazione += 1
+
+        for indice, numero in enumerate(numeri_bollette, start=1):
             sostituzioni.setdefault(numero, f"BOLLETTA_{indice}")
+
+        account_dict = coordinator.dati_account.come_dict()
+        account_dict["notifiche"] = [
+            async_redact_data(n, DA_NASCONDERE) for n in account_dict.get("notifiche") or []
+        ]
         diagnostica["coordinator"] = {
             "ultimo_aggiornamento_riuscito": coordinator.last_update_success,
             "intervallo": str(coordinator.update_interval),
             "ultimo_accesso": coordinator.ultimo_accesso,
             "ultimo_errore": coordinator.ultimo_errore,
             "serie_scritte": coordinator.serie_scritte,
+            "account": account_dict,
             "dati": {numero: dati.come_dict() for numero, dati in dati_coordinator.items()},
         }
     coppie = sorted(sostituzioni.items(), key=lambda voce: len(voce[0]), reverse=True)

@@ -1,4 +1,4 @@
-"""Readings and hourly series, on the real readings of a water meter."""
+"""Readings and hourly series, including multi-band electricity and daily reads."""
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
@@ -43,7 +43,6 @@ def test_le_stime_non_sono_ancore():
 
 def test_serie_oraria_reale():
     righe = lt.serie_oraria(_letture(), ADESSO)
-    # From the end of 27/11/2025 to the end of 22/09/2026, Italian time.
     assert righe[0]["start"] == datetime(2025, 11, 27, 23, tzinfo=UTC)
     assert righe[-1]["start"] == datetime(2026, 9, 22, 21, tzinfo=UTC)
     assert righe[-1]["sum"] == 28.0
@@ -60,7 +59,6 @@ def test_ogni_lettura_reale_cade_a_fine_giornata():
 
 
 def test_cambio_ora_legale():
-    # 29/03/2026 has 23 hours: the period still adds up exactly.
     letture = [_lettura("2026-03-28", 10), _lettura("2026-03-30", 12)]
     righe = lt.serie_oraria(letture, ADESSO)
     assert len(righe) == 47
@@ -135,6 +133,70 @@ def test_valore_del_correttore_ignorato():
     assert lt.estrai_letture([elemento])[0].valore == 12.0
 
 
+def test_luce_multifascia_f1_f2_f3_e_delta_periodi():
+    grezze = [
+        {
+            "date": 1785456000000,  # 2026-07-31
+            "type": "REAL",
+            "meterId": "EL1",
+            "measurements": [
+                {
+                    "type": "REACTIVE",
+                    "bands": [{"type": "F1", "value": 5.0}, {"type": "F2", "value": 5.0}],
+                },
+                {
+                    "type": "ACTIVE",
+                    "value": None,
+                    "bands": [
+                        {"type": "F1", "value": 100.0},
+                        {"type": "F2", "value": 200.0},
+                        {"type": "F3", "value": 300.0},
+                    ],
+                },
+            ],
+        },
+        {
+            "date": 1788134400000,  # 2026-08-31
+            "type": "REAL",
+            "meterId": "EL1",
+            "measurements": [
+                {
+                    "type": "ACTIVE",
+                    "value": None,
+                    "bands": [
+                        {"type": "F1", "value": 140.0},
+                        {"type": "F2", "value": 250.0},
+                        {"type": "F3", "value": 390.0},
+                    ],
+                }
+            ],
+        },
+    ]
+    letture = lt.estrai_letture(grezze)
+    assert len(letture) == 2
+    assert letture[0].valore == 600.0
+    assert letture[0].fasce_dict == {"F1": 100.0, "F2": 200.0, "F3": 300.0}
+    assert lt.Lettura.da_dict(letture[0].come_dict()) == letture[0]
+
+    [periodo] = lt.periodi(letture)
+    assert periodo["consumo"] == 180.0
+    assert periodo["fasce"] == {"F1": 40.0, "F2": 50.0, "F3": 90.0}
+
+
+def test_consumi_giornalieri():
+    righe = lt.estrai_consumi_giornalieri(
+        [
+            {"usageFromDate": 1790121600000, "totalUsage": 4.2, "readType": "REAL"},
+            {"usageFromDate": 1790035200000, "totalUsage": 3.5, "readType": "REAL"},
+            {"usageFromDate": None, "totalUsage": 1.0},
+        ]
+    )
+    assert righe == [
+        {"giorno": "2026-09-22", "consumo": 3.5, "tipo": "REAL"},
+        {"giorno": "2026-09-23", "consumo": 4.2, "tipo": "REAL"},
+    ]
+
+
 def test_periodi():
     periodi = lt.periodi(_letture())
     assert len(periodi) == 9
@@ -191,6 +253,7 @@ def test_statistic_id_sempre_valido():
 
     from custom_components.acegasapsamga.statistics import statistic_id
 
-    for codice in ("-0500001-", "IT  001--E", "  ABC_123  ", "---"):
-        sid = statistic_id("WATER", codice)
-        assert valid_statistic_id(sid), sid
+    for servizio in ("WATER", "GAS", "ELECTRIC", "HEATING"):
+        for codice in ("-0500001-", "IT  001--E", "  ABC_123  ", "---"):
+            sid = statistic_id(servizio, codice)
+            assert valid_statistic_id(sid), sid

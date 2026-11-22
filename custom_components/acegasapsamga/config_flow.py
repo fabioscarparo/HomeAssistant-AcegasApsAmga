@@ -1,6 +1,6 @@
 """Config flow: email and password, then the contracts to follow.
 
-Reauth asks for the password again; the options change the contracts.
+Reauth asks for credentials again; options change the tracked contracts.
 """
 from __future__ import annotations
 
@@ -46,8 +46,6 @@ from .const import (
     CONF_ID_UTENTE,
     DOMAIN,
     SERVIZI_SUPPORTATI,
-    SERVIZIO_ACQUA,
-    SERVIZIO_GAS,
 )
 from .testi import testo
 
@@ -104,10 +102,11 @@ def errore_accesso(err: Exception) -> str:
 
 
 def etichetta(lingua: str | None, contratto: dict[str, Any]) -> str:
+    servizio = contratto["servizio"]
     parti = [
-        testo(lingua, f"servizio_{contratto['servizio']}")
-        if contratto["servizio"] in (SERVIZIO_ACQUA, SERVIZIO_GAS)
-        else str(contratto["servizio"]),
+        testo(lingua, f"servizio_{servizio}")
+        if servizio in SERVIZI_SUPPORTATI
+        else str(servizio),
         contratto["contratto"],
     ]
     if contratto.get("indirizzo"):

@@ -1,20 +1,17 @@
 /*
- * AcegasApsAmga meter card.
+ * AcegasApsAmga meter card (Water, Gas, District Heating).
  *
  * Served by the integration (lovelace_card.py), no resource to add by hand.
  *
- * Built around how a water meter is read: about once a month. The main
- * number is the daily consumption of the last period between two real
- * readings. Under it, the period before and, while there is one, the bill to
- * pay. The chart shows the periods of one calendar year, each bar as wide as
- * its days and as high as its daily average; below it, the year's total, its
- * daily average and its bills.
+ * Built around periodic meter readings (about once a month). The main number
+ * is the daily consumption of the last period between two real readings. Under
+ * it: the previous period, any open or upcoming self-reading window, and
+ * optionally (show_bills: true) any unpaid bill. The chart shows the periods
+ * of one calendar year, each bar as wide as its days and as high as its daily
+ * average; below it, the year's total and daily average.
  *
- * Everything comes from the sensors' attributes, computed by the
- * integration: the year's figures spread each period evenly over its days,
- * like the statistics of the Energy dashboard. Every color and size comes
- * from Home Assistant's tokens. A plain web component in one file, no
- * dependencies.
+ * Everything comes from the sensors' attributes, computed by the integration.
+ * A plain web component in one file, no dependencies.
  */
 
 const CARD_TYPE = "acegasapsamga-contatore-card";
@@ -29,16 +26,23 @@ const STATI_DA_PAGARE = ["unpaid", "expired", "paid_partial"];
 
 const STRINGS = {
   it: {
-    card_name: "AcegasApsAmga · Contatore",
-    card_description: "Consumo giornaliero tra una lettura e l'altra, anno per anno, e bolletta da pagare.",
+    card_name: "AcegasApsAmga · Contatore (Acqua / Gas / TLR)",
+    card_description: "Consumo giornaliero tra una lettura e l'altra, andamento annuale e finestra di autolettura.",
     water: "Acqua",
     gas: "Gas",
+    heating: "Teleriscaldamento",
     meter_line: "Contatore {value} · letto il {date}",
     waiting: "In attesa di due letture reali",
     per_day_water: "litri al giorno",
     per_day_gas: "m³ al giorno",
+    per_day_heating: "{unit} al giorno",
     period_line: "{from} - {to} · {value} in {days} giorni",
     previous_period: "Periodo precedente",
+    self_reading: "Autolettura",
+    self_reading_open: "Finestra aperta",
+    self_reading_until: "Fino al {date}",
+    self_reading_in: "Tra {days} giorni",
+    self_reading_starts: "Dal {date}",
     bill_due: "Bolletta da pagare",
     bills_due: "{count} bollette da pagare",
     bill_overdue: "Bolletta scaduta",
@@ -61,8 +65,10 @@ const STRINGS = {
     empty_text: "Per calcolare i consumi servono almeno due letture reali del contatore. AcegasApsAmga legge il contatore circa una volta al mese.",
     not_configured_title: "Integrazione non configurata",
     not_configured_text: "Aggiungi l'integrazione AcegasApsAmga per vedere qui i consumi del tuo contatore.",
+    not_configured_sub: "Non configurata",
     device_not_found_title: "Contatore non trovato",
     device_not_found_text: "Il contatore configurato per questa card non è più disponibile. Scegline un altro dalle impostazioni della card.",
+    device_not_found_sub: "Dispositivo non disponibile",
     ask_admin: "Chiedi a un amministratore di farlo.",
     configure: "Configura",
     chart: "Consumo medio giornaliero per periodo di lettura nel {year}",
@@ -70,19 +76,27 @@ const STRINGS = {
     ed_name: "Nome",
     ed_icon: "Icona",
     ed_decimals: "Cifre decimali",
-    ed_decimals_helper: "Da 0 a 3, per i valori in m³. Se vuoto dipendono dal valore.",
+    ed_decimals_helper: "Da 0 a 3. Se vuoto dipende dal valore.",
+    ed_show_bills: "Mostra riepilogo bollette nella card",
   },
   en: {
-    card_name: "AcegasApsAmga · Meter",
-    card_description: "Daily consumption between readings, year by year, and the bill to pay.",
+    card_name: "AcegasApsAmga · Meter (Water / Gas / Heating)",
+    card_description: "Daily consumption between readings, annual chart and self-reading window.",
     water: "Water",
     gas: "Gas",
+    heating: "District heating",
     meter_line: "Meter {value} · read on {date}",
     waiting: "Waiting for two real readings",
     per_day_water: "litres a day",
     per_day_gas: "m³ a day",
+    per_day_heating: "{unit} a day",
     period_line: "{from} - {to} · {value} in {days} days",
     previous_period: "Previous period",
+    self_reading: "Self-reading",
+    self_reading_open: "Window open",
+    self_reading_until: "Until {date}",
+    self_reading_in: "In {days} days",
+    self_reading_starts: "From {date}",
     bill_due: "Bill to pay",
     bills_due: "{count} bills to pay",
     bill_overdue: "Bill overdue",
@@ -105,8 +119,10 @@ const STRINGS = {
     empty_text: "Consumption needs at least two real meter readings. AcegasApsAmga reads the meter about once a month.",
     not_configured_title: "Integration not set up",
     not_configured_text: "Add the AcegasApsAmga integration to see your meter's consumption here.",
+    not_configured_sub: "Not configured",
     device_not_found_title: "Meter not found",
     device_not_found_text: "The meter configured for this card is no longer available. Choose another one in the card settings.",
+    device_not_found_sub: "Device unavailable",
     ask_admin: "Ask an administrator to do it.",
     configure: "Set up",
     chart: "Average daily consumption by reading period in {year}",
@@ -114,7 +130,8 @@ const STRINGS = {
     ed_name: "Name",
     ed_icon: "Icon",
     ed_decimals: "Decimal places",
-    ed_decimals_helper: "From 0 to 3, for values in m³. When empty they depend on the value.",
+    ed_decimals_helper: "From 0 to 3. When empty it depends on the value.",
+    ed_show_bills: "Show bill summary in card",
   },
 };
 
@@ -129,7 +146,6 @@ const traduci = (hass, key, vars = {}) => {
   return s;
 };
 
-// Like the frontend's navigate(): no page reload.
 const naviga = (percorso) => {
   history.pushState(null, "", percorso);
   window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
@@ -139,8 +155,6 @@ const escapeHtml = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 // --- Calendar days in the server's time zone -----------------------------------
-// Days and years follow Home Assistant's time zone, like the Recorder. A day
-// is {y, m, d} with a 0-based month.
 
 const _dtfCache = new Map();
 const _nfCache = new Map();
@@ -165,6 +179,7 @@ const dateFormatter = (lang, tz, opzioni) => {
   }
   return df;
 };
+
 const partiNelFuso = (date, tz) => {
   let dtf = _dtfCache.get(tz);
   if (!dtf) {
@@ -236,8 +251,6 @@ const scalaArrotondata = (max, passi = 4) => {
 
 // --- The meters of the integration ----------------------------------------------
 
-// One per device, from the entity registry: sensors are found by their
-// translation_key, so renamed entities keep working.
 const trovaContatori = (hass) => {
   const perDispositivo = new Map();
   for (const e of Object.values(hass?.entities || {})) {
@@ -257,7 +270,7 @@ const trovaContatori = (hass) => {
 const valido = (stato) => !!stato && !["unavailable", "unknown", ""].includes(stato.state);
 
 // Sensors whose changes are shown by the card.
-const SENSORI_MOSTRATI = ["lettura", "consumo_periodo", "bolletta", "da_pagare", "scadenza_bolletta"];
+const SENSORI_MOSTRATI = ["lettura", "consumo_periodo", "autolettura", "bolletta", "da_pagare", "scadenza_bolletta"];
 
 // --- Card ------------------------------------------------------------------------
 
@@ -267,7 +280,6 @@ class AcegasContatoreCard extends HTMLElement {
   }
 
   static getStubConfig() {
-    // No device: the card takes the first meter it finds.
     return {};
   }
 
@@ -283,7 +295,6 @@ class AcegasContatoreCard extends HTMLElement {
   }
 
   setConfig(config) {
-    // 'view' belonged to the first version, with two charts: it is ignored.
     const decimali = config.decimals;
     if (decimali !== undefined && decimali !== null
       && !(Number.isInteger(decimali) && decimali >= 0 && decimali <= MAX_DECIMALI)) {
@@ -301,7 +312,6 @@ class AcegasContatoreCard extends HTMLElement {
       this._contatoriDa = hass.entities;
     }
     this._hass = hass;
-    // hass changes on every state event: redraw only when something shown changed.
     const firma = this._firmaVista();
     if (firma !== this._firma) {
       this._firma = firma;
@@ -357,7 +367,12 @@ class AcegasContatoreCard extends HTMLElement {
     if (this._config.device_id) {
       return contatori.find((c) => c.deviceId === this._config.device_id) || null;
     }
-    return contatori[0] || null;
+    // Prefer water, gas or heating meters when no device_id is pinned.
+    const nonLuce = contatori.find((c) => {
+      const s = this._hass?.states?.[c.entita.lettura];
+      return s?.attributes?.servizio !== "ELECTRIC";
+    });
+    return nonLuce || contatori[0] || null;
   }
 
   _stato(chiave) {
@@ -365,17 +380,35 @@ class AcegasContatoreCard extends HTMLElement {
     return id ? this._hass?.states[id] : undefined;
   }
 
-  get _gas() {
-    return this._stato("lettura")?.attributes.device_class === "gas";
+  get _tipoServizio() {
+    const attrs = this._stato("lettura")?.attributes || {};
+    if (attrs.servizio === "HEATING") return "heating";
+    if (attrs.servizio === "GAS" || attrs.device_class === "gas") return "gas";
+    if (attrs.servizio === "ELECTRIC" || attrs.device_class === "energy") return "heating";
+    return "water";
   }
 
-  // Values per day in litres for water, in cubic metres for gas.
+  get _gas() {
+    return this._tipoServizio === "gas";
+  }
+
+  get _heating() {
+    return this._tipoServizio === "heating";
+  }
+
+  get _unitaConsumo() {
+    const u = this._stato("lettura")?.attributes?.unit_of_measurement;
+    if (u) return u;
+    return this._heating ? "kWh" : "m³";
+  }
+
+  // Values per day in litres for water, native units for gas and heating.
   get _fattoreGiorno() {
-    return this._gas ? 1 : 1000;
+    return this._tipoServizio === "water" ? 1000 : 1;
   }
 
   get _unitaGiorno() {
-    return this._gas ? "m³" : "L";
+    return this._tipoServizio === "water" ? "L" : this._unitaConsumo;
   }
 
   _firmaVista() {
@@ -387,6 +420,7 @@ class AcegasContatoreCard extends HTMLElement {
     return [
       this._contatore?.deviceId,
       this._config.device_id,
+      !!this._config.show_bills,
       h.themes?.theme,
       h.themes?.darkMode,
       h.locale?.language || h.language,
@@ -398,7 +432,6 @@ class AcegasContatoreCard extends HTMLElement {
     ].join("|");
   }
 
-  // Periods between real readings, oldest first, from the integration.
   _periodi() {
     const tz = this._tz;
     const grezzi = this._stato("consumo_periodo")?.attributes.periodi || [];
@@ -419,7 +452,6 @@ class AcegasContatoreCard extends HTMLElement {
     return mezzanotte({ y: anno, m: 0, d: 1 }, this._tz).getTime();
   }
 
-  // Consumption and days of a year: each period counts for the days it has in it.
   _datiAnno(periodi, anno) {
     const inizio = this._inizioAnno(anno);
     const fine = this._inizioAnno(anno + 1);
@@ -438,7 +470,6 @@ class AcegasContatoreCard extends HTMLElement {
     return this._stato("bolletta")?.attributes.bollette || [];
   }
 
-  // What is still to pay, from the integration's sensors; null when nothing is.
   _daPagare() {
     const totale = this._stato("da_pagare");
     const importo = valido(totale) ? Number(totale.state) : 0;
@@ -459,6 +490,15 @@ class AcegasContatoreCard extends HTMLElement {
     return { importo, scadenza, quante: Math.max(aperte.length, 1), scaduta, tutteScadute, domiciliata };
   }
 
+  _autolettura() {
+    const s = this._stato("autolettura");
+    if (!valido(s)) return null;
+    const aperta = s.attributes.aperta === true;
+    const giorni = s.attributes.giorni_mancanti;
+    if (!aperta && !(typeof giorni === "number" && giorni <= 14)) return null;
+    return { inizio: s.state, fine: s.attributes.fine, aperta, giorni };
+  }
+
   // --- Formatting -----------------------------------------------------------------
 
   get _locale() {
@@ -470,7 +510,6 @@ class AcegasContatoreCard extends HTMLElement {
   _numero(v, cifre) {
     if (v === null || v === undefined || Number.isNaN(v)) return "-";
     const a = Math.abs(v);
-    // Fewer digits as the value grows, unless the config or the caller says otherwise.
     const d = cifre ?? this._config.decimals ?? (a >= 100 ? 0 : a >= 10 ? 1 : 2);
     return numberFormatter(this._locale, {
       minimumFractionDigits: d, maximumFractionDigits: d,
@@ -478,10 +517,9 @@ class AcegasContatoreCard extends HTMLElement {
     }).format(v);
   }
 
-  _metriCubi(v) {
-    // Whole cubic metres, as the meter shows them, stay whole.
+  _quantita(v) {
     const intero = Number.isInteger(v) && this._config.decimals == null;
-    return `${this._numero(v, intero ? 0 : undefined)} m³`;
+    return `${this._numero(v, intero ? 0 : undefined)} ${this._unitaConsumo}`;
   }
 
   _euro(v) {
@@ -491,9 +529,8 @@ class AcegasContatoreCard extends HTMLElement {
     }).format(v);
   }
 
-  // A daily value: litres with no decimals, or cubic metres for gas.
   _giornaliero(v) {
-    return this._gas ? this._numero(v) : this._numero(v, 0);
+    return this._tipoServizio === "water" ? this._numero(v, 0) : this._numero(v);
   }
 
   _alGiorno(v) {
@@ -511,9 +548,9 @@ class AcegasContatoreCard extends HTMLElement {
 
   _colore() {
     const cs = getComputedStyle(this);
-    return this._gas
-      ? parseColore(cs.getPropertyValue("--energy-gas-color"), [142, 2, 27])
-      : parseColore(cs.getPropertyValue("--energy-water-color"), [0, 188, 212]);
+    if (this._gas) return parseColore(cs.getPropertyValue("--energy-gas-color"), [142, 2, 27]);
+    if (this._heating) return parseColore(cs.getPropertyValue("--energy-heating-color"), [249, 115, 22]);
+    return parseColore(cs.getPropertyValue("--energy-water-color"), [0, 188, 212]);
   }
 
   // --- Rendering ------------------------------------------------------------------
@@ -531,7 +568,6 @@ class AcegasContatoreCard extends HTMLElement {
     }
     if (this._modo !== "card") this._struttura();
 
-    // The year of the last reading, until the user picks another.
     const primoAnno = daIso(periodi[0].dal).y;
     const ultimoAnno = daIso(periodi[periodi.length - 1].al).y;
     if (this._anno === null || this._anno < primoAnno || this._anno > ultimoAnno) this._anno = ultimoAnno;
@@ -542,7 +578,7 @@ class AcegasContatoreCard extends HTMLElement {
 
     this._renderIntestazione();
     this._renderProtagonista(periodi);
-    this._renderBolletta();
+    this._renderAutoletturaEBolletta();
 
     const prev = $('[data-azione="prev"]');
     const next = $('[data-azione="next"]');
@@ -560,30 +596,32 @@ class AcegasContatoreCard extends HTMLElement {
   _renderIntestazione() {
     const t = (k, v) => traduci(this._hass, k, v);
     const $ = (sel) => this.shadowRoot.querySelector(sel);
-    const icona = this._config.icon || (this._gas ? "mdi:fire" : "mdi:water");
+    const defaultIcon = this._gas ? "mdi:fire" : this._heating ? "mdi:radiator" : "mdi:water";
+    const icona = this._config.icon || defaultIcon;
     if ($(".icon ha-icon").getAttribute("icon") !== icona) $(".icon ha-icon").setAttribute("icon", icona);
-    $(".primary").textContent = this._config.name || t(this._gas ? "gas" : "water");
+    $(".primary").textContent = this._config.name || t(this._tipoServizio);
     const lettura = this._stato("lettura");
     $(".secondary").textContent = valido(lettura) && lettura.attributes.giorno
       ? t("meter_line", {
-        value: this._hass.formatEntityState ? this._hass.formatEntityState(lettura) : `${lettura.state} m³`,
+        value: this._hass.formatEntityState ? this._hass.formatEntityState(lettura) : `${lettura.state} ${this._unitaConsumo}`,
         date: this._giorno(lettura.attributes.giorno),
       })
       : t("waiting");
   }
 
   _renderProtagonista(periodi) {
-    // The daily consumption of the last period, next to the one before.
     const t = (k, v) => traduci(this._hass, k, v);
     const $ = (sel) => this.shadowRoot.querySelector(sel);
     const ultimo = periodi[periodi.length - 1];
     const prima = periodi[periodi.length - 2];
     $(".hero-value").textContent = this._giornaliero(ultimo.media);
-    $(".hero-unit").textContent = t(this._gas ? "per_day_gas" : "per_day_water");
+    $(".hero-unit").textContent = this._heating
+      ? t("per_day_heating", { unit: this._unitaConsumo })
+      : t(this._gas ? "per_day_gas" : "per_day_water");
     $(".hero-sub").textContent = t("period_line", {
       from: this._giorno(ultimo.dal),
       to: this._giorno(ultimo.al),
-      value: this._metriCubi(ultimo.consumo),
+      value: this._quantita(ultimo.consumo),
       days: String(ultimo.giorni),
     });
 
@@ -592,36 +630,56 @@ class AcegasContatoreCard extends HTMLElement {
     if (!prima) return;
     fatto.querySelector(".fact-label").textContent = t("previous_period");
     fatto.querySelector(".fact-value").textContent = this._alGiorno(prima.media);
-    // Its days, like the line under the main number: the two values are compared by reading them.
     fatto.querySelector(".fact-sub span").textContent = `${this._giorno(prima.dal)} - ${this._giorno(prima.al)}`;
   }
 
-  _renderBolletta() {
-    // Shown only while something is still to pay.
+  _renderAutoletturaEBolletta() {
     const t = (k, v) => traduci(this._hass, k, v);
     const $ = (sel) => this.shadowRoot.querySelector(sel);
-    const fatto = $('[data-fatto="bolletta"]');
-    const conto = this._daPagare();
-    fatto.hidden = !conto;
-    $(".facts").hidden = fatto.hidden && $('[data-fatto="prima"]').hidden;
-    if (!conto) return;
-    fatto.classList.toggle("scaduta", conto.scaduta);
-    fatto.querySelector(".fact-label").textContent = conto.quante > 1
-      ? conto.tutteScadute
-        ? t("bills_overdue", { count: String(conto.quante) })
-        : t("bills_due", { count: String(conto.quante) })
-      : conto.scaduta ? t("bill_overdue") : t("bill_due");
-    fatto.querySelector(".fact-value").textContent = this._euro(conto.importo);
-    const data = conto.scadenza ? this._giorno(conto.scadenza) : null;
-    fatto.querySelector(".fact-sub span").textContent = !data
-      ? ""
-      : conto.scaduta
-        ? t("overdue_since", { date: data })
-        : conto.domiciliata ? t("direct_debit_on", { date: data }) : t("due_by", { date: data });
+
+    const fattoBolletta = $('[data-fatto="bolletta"]');
+    const conto = this._config.show_bills ? this._daPagare() : null;
+    fattoBolletta.hidden = !conto;
+    if (conto) {
+      fattoBolletta.classList.toggle("scaduta", conto.scaduta);
+      fattoBolletta.querySelector(".fact-label").textContent = conto.quante > 1
+        ? conto.tutteScadute
+          ? t("bills_overdue", { count: String(conto.quante) })
+          : t("bills_due", { count: String(conto.quante) })
+        : conto.scaduta ? t("bill_overdue") : t("bill_due");
+      fattoBolletta.querySelector(".fact-value").textContent = this._euro(conto.importo);
+      const data = conto.scadenza ? this._giorno(conto.scadenza) : null;
+      fattoBolletta.querySelector(".fact-sub span").textContent = !data
+        ? ""
+        : conto.scaduta
+          ? t("overdue_since", { date: data })
+          : conto.domiciliata ? t("direct_debit_on", { date: data }) : t("due_by", { date: data });
+    }
+
+    const fattoAuto = $('[data-fatto="autolettura"]');
+    const auto = this._autolettura();
+    fattoAuto.hidden = !auto;
+    if (auto) {
+      fattoAuto.classList.toggle("aperta", auto.aperta);
+      fattoAuto.querySelector(".fact-label").textContent = t("self_reading");
+      fattoAuto.querySelector(".fact-value").textContent = auto.aperta
+        ? t("self_reading_open")
+        : t("self_reading_in", { days: String(auto.giorni) });
+      fattoAuto.querySelector(".fact-sub span").textContent = auto.aperta && auto.fine
+        ? t("self_reading_until", { date: this._giorno(auto.fine) })
+        : t("self_reading_starts", { date: this._giorno(auto.inizio) });
+    }
+
+    const visibili = [
+      !$('[data-fatto="prima"]').hidden,
+      !fattoBolletta.hidden,
+      !fattoAuto.hidden,
+    ].filter(Boolean).length;
+    $(".facts").hidden = visibili === 0;
+    $(".facts").classList.toggle("tre", visibili === 3);
   }
 
   _renderRiepilogo(periodi) {
-    // The selected year: total, daily average and bills issued in it.
     const t = (k, v) => traduci(this._hass, k, v);
     const $ = (sel) => this.shadowRoot.querySelector(sel);
     const anno = this._anno;
@@ -631,11 +689,10 @@ class AcegasContatoreCard extends HTMLElement {
       el.querySelector(".stat-label").textContent = etichetta;
       el.querySelector(".stat-value").textContent = valore;
     };
-    imposta("anno", t("in_year", { year: anno }), dati ? this._metriCubi(Math.round(dati.consumo * 10) / 10) : "-");
+    imposta("anno", t("in_year", { year: anno }), dati ? this._quantita(Math.round(dati.consumo * 10) / 10) : "-");
     imposta("media", t("average_year", { year: anno }), dati ? this._alGiorno(dati.media) : "-");
 
-    // Bills appear only with an integration that has the bill sensors.
-    const conBollette = !!this._contatore?.entita.bolletta;
+    const conBollette = !!this._config.show_bills && !!this._contatore?.entita.bolletta;
     $(".stats").classList.toggle("tre", conBollette);
     $('[data-stat="bollette"]').hidden = !conBollette;
     if (conBollette) {
@@ -643,7 +700,7 @@ class AcegasContatoreCard extends HTMLElement {
         (b) => String(b.emissione).startsWith(`${anno}-`) && b.stato !== "reversed"
       );
       const totale = dellAnno.reduce((s, b) => {
-        const importo = Number(b.importo) || 0;
+        const importo = Number(b.importo_servizio ?? b.importo) || 0;
         return s + (b.stato === "credit" ? -Math.abs(importo) : importo);
       }, 0);
       imposta("bollette", t("bills_year", { year: anno }), dellAnno.length ? this._euro(totale) : "-");
@@ -651,7 +708,6 @@ class AcegasContatoreCard extends HTMLElement {
   }
 
   _alertConAzione(titolo, testo, etichetta, percorso) {
-    // Setup pages are for administrators: others get the text without a button.
     const admin = !!this._hass.user?.is_admin;
     return `<ha-alert alert-type="info" title="${escapeHtml(titolo)}">
       ${escapeHtml(testo)}${admin ? "" : ` ${escapeHtml(traduci(this._hass, "ask_admin"))}`}
@@ -660,73 +716,125 @@ class AcegasContatoreCard extends HTMLElement {
   }
 
   _renderVuota(chiave) {
-    // Integration missing, meter removed, or set up without two real readings yet.
     this._ro?.disconnect();
     this._staccaChiusuraEsterna();
     const configurata = (this._hass.config?.components || []).includes(DOMAIN);
     const quale = chiave === "not_configured" && configurata ? "empty" : chiave;
-    const firma = `vuota-${quale}-${lingua(this._hass)}-${this._hass.user?.is_admin}`;
+    const lettura = this._stato("lettura");
+    const firma = [
+      "vuota",
+      quale,
+      lingua(this._hass),
+      this._hass.locale?.number_format || "",
+      this._hass.themes?.theme || "",
+      !!this._hass.themes?.darkMode,
+      this._hass.user?.is_admin,
+      this._contatore?.deviceId || "",
+      this._config.name || "",
+      this._config.icon || "",
+      lettura ? `${lettura.state}@${lettura.attributes?.giorno || ""}` : "",
+    ].join("|");
     if (this._modo === firma) return;
     this._modo = firma;
-    const t = (k) => traduci(this._hass, k);
+    const t = (k, v) => traduci(this._hass, k, v);
+    const defaultIcon = this._contatore
+      ? (this._gas ? "mdi:fire" : this._heating ? "mdi:radiator" : "mdi:water")
+      : "mdi:water";
+    const icona = this._config.icon || defaultIcon;
+    const titoloCard = this._config.name || (this._contatore ? t(this._tipoServizio) : t("water"));
+    let accent = "var(--state-inactive-color, var(--disabled-text-color, #9e9e9e))";
+    let sottotitolo = t("waiting");
     let contenuto;
     if (quale === "not_configured") {
+      sottotitolo = t("not_configured_sub");
       contenuto = this._alertConAzione(t("not_configured_title"), t("not_configured_text"), t("configure"), URL_CONFIGURA);
     } else if (quale === "device_not_found") {
+      accent = "var(--warning-color, #ffa600)";
+      sottotitolo = t("device_not_found_sub");
       contenuto = `<ha-alert alert-type="warning" title="${escapeHtml(t("device_not_found_title"))}">${escapeHtml(t("device_not_found_text"))}</ha-alert>`;
     } else {
+      accent = rgbCss(this._colore());
+      const lettura = this._stato("lettura");
+      if (valido(lettura) && lettura.attributes.giorno) {
+        sottotitolo = t("meter_line", {
+          value: this._hass.formatEntityState ? this._hass.formatEntityState(lettura) : `${lettura.state} ${this._unitaConsumo}`,
+          date: this._giorno(lettura.attributes.giorno),
+        });
+      }
       contenuto = `<ha-alert alert-type="info" title="${escapeHtml(t("empty_title"))}">${escapeHtml(t("empty_text"))}</ha-alert>`;
     }
-    this.shadowRoot.innerHTML = `<style>${STILE}</style><ha-card><div class="empty-card">${contenuto}</div></ha-card>`;
+    const headerTag = this._contatore ? 'button type="button" class="header" data-apri="lettura"' : 'div class="header static"';
+    const headerEnd = this._contatore ? "</button>" : "</div>";
+    this.shadowRoot.innerHTML = `<style>${STILE}</style>
+      <ha-card style="--acegas-accent:${accent}">
+        <article class="card">
+          <${headerTag}>
+            <div class="icon"><ha-icon icon="${escapeHtml(icona)}"></ha-icon></div>
+            <div class="info">
+              <div class="primary">${escapeHtml(titoloCard)}</div>
+              <div class="secondary">${escapeHtml(sottotitolo)}</div>
+            </div>
+          ${headerEnd}
+          <div class="content empty-content">${contenuto}</div>
+        </article>
+      </ha-card>`;
     this.shadowRoot.querySelectorAll("[data-percorso]").forEach((el) =>
       el.addEventListener("click", () => naviga(el.dataset.percorso)));
+    this.shadowRoot.querySelectorAll("[data-apri]").forEach((el) =>
+      el.addEventListener("click", () => this._moreInfo(this._contatore?.entita[el.dataset.apri])));
   }
 
   _struttura() {
-    // Built once: updates only change texts and attributes, so nothing flickers.
     this._modo = "card";
     this.shadowRoot.innerHTML = `
       <style>${STILE}</style>
       <ha-card>
-        <button type="button" class="header" data-apri="lettura">
-          <div class="icon"><ha-icon></ha-icon></div>
-          <div class="info">
-            <div class="primary"></div>
-            <div class="secondary"></div>
-          </div>
-        </button>
-        <div class="content">
-          <button type="button" class="hero" data-apri="media_giornaliera">
-            <div class="hero-main"><span class="hero-value"></span><span class="hero-unit"></span></div>
-            <div class="hero-sub"></div>
+        <article class="card">
+          <button type="button" class="header" data-apri="lettura">
+            <div class="icon"><ha-icon></ha-icon></div>
+            <div class="info">
+              <div class="primary"></div>
+              <div class="secondary"></div>
+            </div>
           </button>
-          <div class="facts">
-            <button type="button" class="fact" data-fatto="prima" data-apri="consumo_periodo" hidden>
-              <div class="fact-label"></div>
-              <div class="fact-value"></div>
-              <div class="fact-sub"><span></span></div>
+          <div class="content">
+            <button type="button" class="hero" data-apri="media_giornaliera">
+              <div class="hero-main"><span class="hero-value"></span><span class="hero-unit"></span></div>
+              <div class="hero-sub"></div>
             </button>
-            <button type="button" class="fact" data-fatto="bolletta" data-apri="bolletta" hidden>
-              <div class="fact-label"></div>
-              <div class="fact-value"></div>
-              <div class="fact-sub"><span></span></div>
-            </button>
+            <div class="facts">
+              <button type="button" class="fact" data-fatto="prima" data-apri="consumo_periodo" hidden>
+                <div class="fact-label"></div>
+                <div class="fact-value"></div>
+                <div class="fact-sub"><span></span></div>
+              </button>
+              <button type="button" class="fact" data-fatto="bolletta" data-apri="bolletta" hidden>
+                <div class="fact-label"></div>
+                <div class="fact-value"></div>
+                <div class="fact-sub"><span></span></div>
+              </button>
+              <button type="button" class="fact" data-fatto="autolettura" data-apri="autolettura" hidden>
+                <div class="fact-label"></div>
+                <div class="fact-value"></div>
+                <div class="fact-sub"><span></span></div>
+              </button>
+            </div>
+            <div class="nav">
+              <ha-icon-button data-azione="prev"><ha-icon icon="mdi:chevron-left"></ha-icon></ha-icon-button>
+              <div class="period"></div>
+              <ha-icon-button data-azione="next"><ha-icon icon="mdi:chevron-right"></ha-icon></ha-icon-button>
+            </div>
+            <div class="chart">
+              <div class="svg-host"></div>
+              <div id="chart-tooltip" class="tooltip" role="tooltip" hidden></div>
+            </div>
+            <footer class="stats">
+              <div class="stat" data-stat="anno"><div class="stat-label"></div><div class="stat-value"></div></div>
+              <div class="stat" data-stat="media"><div class="stat-label"></div><div class="stat-value"></div></div>
+              <div class="stat" data-stat="bollette" hidden><div class="stat-label"></div><div class="stat-value"></div></div>
+            </footer>
           </div>
-          <div class="nav">
-            <ha-icon-button data-azione="prev"><ha-icon icon="mdi:chevron-left"></ha-icon></ha-icon-button>
-            <div class="period"></div>
-            <ha-icon-button data-azione="next"><ha-icon icon="mdi:chevron-right"></ha-icon></ha-icon-button>
-          </div>
-          <div class="chart">
-            <div class="svg-host"></div>
-            <div id="chart-tooltip" class="tooltip" role="tooltip" hidden></div>
-          </div>
-          <div class="stats">
-            <div class="stat" data-stat="anno"><div class="stat-label"></div><div class="stat-value"></div></div>
-            <div class="stat" data-stat="media"><div class="stat-label"></div><div class="stat-value"></div></div>
-            <div class="stat" data-stat="bollette" hidden><div class="stat-label"></div><div class="stat-value"></div></div>
-          </div>
-        </div>
+        </article>
       </ha-card>`;
 
     const root = this.shadowRoot;
@@ -737,7 +845,6 @@ class AcegasContatoreCard extends HTMLElement {
     };
     root.querySelector('[data-azione="prev"]').addEventListener("click", () => sposta(-1));
     root.querySelector('[data-azione="next"]').addEventListener("click", () => sposta(1));
-    // Header, numbers and the bill open the details of their sensor, like a tile.
     root.querySelectorAll("[data-apri]").forEach((el) => {
       el.addEventListener("click", () => this._moreInfo(this._contatore?.entita[el.dataset.apri]));
     });
@@ -770,21 +877,18 @@ class AcegasContatoreCard extends HTMLElement {
     const fineAnno = this._inizioAnno(anno + 1);
     const f = (ms) => (ms - inizioAnno) / (fineAnno - inizioAnno);
 
-    // A bar for each period with days in the year, cut at the year's edges.
     const voci = periodi
       .filter((p) => p.fine > inizioAnno && p.inizio < fineAnno)
       .map((p) => ({ p, f0: Math.max(0, f(p.inizio)), f1: Math.min(1, f(p.fine)) }));
     const colore = this._colore();
-    // Exclude sliver edges (< 4px) from the Y scale so an undrawn sliver cannot flatten the chart.
     const sogliaFrazione = 4 / Math.max(10, W - 40);
     const perScala = voci.filter((v) => v.f1 - v.f0 >= sogliaFrazione);
     const scala = scalaArrotondata(Math.max(0, ...(perScala.length ? perScala : voci).map((v) => v.p.media)), 4);
 
-    // Room above the top value for the unit label.
     const H = 192;
     const top = 34;
     const bottom = 22;
-    const cifre = this._gas ? (scala.ticks.some((v) => v % 1) ? 1 : 0) : 0;
+    const cifre = this._tipoServizio === "water" ? 0 : (scala.ticks.some((v) => v % 1) ? 1 : 0);
     const etichetteY = scala.ticks.map((v) => this._numero(v, cifre));
     const left = Math.max(24, Math.ceil(Math.max(...etichetteY.map((s) => s.length)) * 7) + 10);
     const right = 4;
@@ -799,11 +903,9 @@ class AcegasContatoreCard extends HTMLElement {
       parti.push(`<line class="grid" x1="${left}" x2="${W - right}" y1="${yy}" y2="${yy}"/>`);
       parti.push(`<text class="ylab" x="${left - 8}" y="${yy + 4}">${escapeHtml(etichetteY[i])}</text>`);
     });
-    // The unit starts at the left edge: "L/giorno" is wider than the axis labels.
     parti.push(`<text class="unita" x="0" y="12">${escapeHtml(t("unit_per_day", { unit: this._unitaGiorno }))}</text>`);
     parti.push(`<rect class="hover-band" x="0" y="${top}" width="0" height="${plotH}" />`);
 
-    // Like the energy cards: 50% fill, solid 1.5px border, top corners rounded to 4px.
     const barra = (x0, x1, v) => {
       if (v <= 0) return "";
       const w = x1 - x0;
@@ -823,14 +925,11 @@ class AcegasContatoreCard extends HTMLElement {
       return `<path d="${d}" fill="${rgbCss(colore, 0.5)}" stroke="${rgbCss(colore)}" stroke-width="1.5" stroke-linejoin="round"/>`;
     };
     for (const v of voci) {
-      // A few days cut by the year's edge would be a sliver: they stay in the tooltip only.
       if ((v.f1 - v.f0) * plotW < 4) continue;
-      // A small gap between periods, never more than 2px a side.
       const margine = Math.min(0.04 * (v.f1 - v.f0) * plotW, 2);
       parti.push(barra(x(v.f0) + margine, x(v.f1) - margine, v.p.media));
     }
 
-    // Month names under the middle of each month.
     const stretta = W < 360;
     for (let m = 0; m < 12; m++) {
       const inizio = mezzanotte({ y: anno, m, d: 1 }, tz).getTime();
@@ -908,7 +1007,6 @@ class AcegasContatoreCard extends HTMLElement {
     else nascondi();
   }
 
-  // The whole period, even when the year cuts its bar.
   _tooltip(p, colore) {
     const t = (k, v) => traduci(this._hass, k, v);
     const riga = (nome, valore, puntino) => `<div class="tip-row">${puntino ? `<span class="tip-marker" style="background:${rgbCss(colore)}"></span>` : ""}
@@ -916,7 +1014,7 @@ class AcegasContatoreCard extends HTMLElement {
     const titolo = `${this._giorno(p.dal)} - ${this._giorno(p.al, { day: "numeric", month: "short", year: "numeric" })}`;
     return `<div class="tip-title">${escapeHtml(titolo)}</div>`
       + riga(t("daily_average"), this._alGiorno(p.media), true)
-      + riga(t("consumption"), this._metriCubi(p.consumo))
+      + riga(t("consumption"), this._quantita(p.consumo))
       + riga(t("days"), String(p.giorni));
   }
 }
@@ -924,7 +1022,7 @@ class AcegasContatoreCard extends HTMLElement {
 const STILE = `
   :host { display: block; }
   ha-card { height: 100%; overflow: hidden; }
-  .empty-card { padding: var(--ha-space-4, 16px); }
+  .card { display: block; }
   ha-alert { display: block; }
   [hidden] { display: none !important; }
 
@@ -934,9 +1032,11 @@ const STILE = `
   }
   .header {
     display: flex; align-items: center; gap: 10px;
-    padding: 12px 16px 0; cursor: pointer; outline: none;
+    padding: var(--ha-space-3, 12px) var(--ha-space-4, 16px) 0; cursor: pointer; outline: none;
     border-radius: var(--ha-card-border-radius, var(--ha-border-radius-lg, 12px));
   }
+  .header.static { cursor: default; }
+  .empty-content { padding-top: var(--ha-space-3, 12px); }
   .header:focus-visible, .hero:focus-visible, .fact:focus-visible, svg:focus-visible {
     box-shadow: inset 0 0 0 2px var(--acegas-accent);
   }
@@ -950,7 +1050,7 @@ const STILE = `
     content: ""; position: absolute; inset: 0;
     background-color: var(--acegas-accent); opacity: 0.2; transition: opacity 180ms ease-in-out;
   }
-  .header:hover .icon::before { opacity: 0.35; }
+  .header:not(.static):hover .icon::before { opacity: 0.35; }
   .icon ha-icon { position: relative; display: flex; }
   .info { min-width: 0; flex: 1; }
   .primary {
@@ -964,9 +1064,8 @@ const STILE = `
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  .content { display: flex; flex-direction: column; gap: 12px; padding: 16px; container-type: inline-size; }
+  .content { display: flex; flex-direction: column; gap: var(--ha-space-3, 12px); padding: var(--ha-space-4, 16px); container-type: inline-size; }
 
-  /* The main number: daily consumption of the last period */
   .hero { cursor: pointer; outline: none; border-radius: var(--ha-border-radius-md, 8px); }
   .hero-main {
     display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;
@@ -982,8 +1081,8 @@ const STILE = `
     color: var(--secondary-text-color);
   }
 
-  /* The period before and the bill to pay: plain text, like the year's figures */
   .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .facts.tre { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fact { min-width: 0; cursor: pointer; outline: none; border-radius: var(--ha-border-radius-md, 8px); }
   .fact-label, .fact-sub {
     font-size: var(--ha-font-size-s, 12px); line-height: 16px; letter-spacing: 0.4px;
@@ -995,6 +1094,7 @@ const STILE = `
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .fact.scaduta .fact-label { color: var(--error-color, #db4437); }
+  .fact.aperta .fact-label, .fact.aperta .fact-value { color: var(--acegas-accent); }
 
   .nav { display: flex; align-items: center; margin: -4px -12px -4px; }
   .nav ha-icon-button { --mdc-icon-button-size: 40px; color: var(--primary-text-color); }
@@ -1007,7 +1107,7 @@ const STILE = `
 
   .chart { position: relative; min-height: 192px; margin: 0 -4px; touch-action: pan-y; }
   svg { display: block; overflow: visible; outline: none; border-radius: var(--ha-border-radius-md, 8px); }
-  svg text { font-size: 12px; fill: var(--primary-text-color); }
+  svg text { font-size: var(--ha-font-size-s, 12px); fill: var(--primary-text-color); }
   svg .ylab { text-anchor: end; }
   svg .unita { fill: var(--secondary-text-color); }
   svg .xlab { text-anchor: middle; }
@@ -1020,10 +1120,9 @@ const STILE = `
     pointer-events: none;
   }
 
-  /* The selected year: total, average and bills */
   .stats {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px;
-    padding-top: 12px; border-top: 1px solid var(--divider-color);
+    padding-top: var(--ha-space-3, 12px); border-top: 1px solid var(--divider-color);
   }
   .stats.tre { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .stat { min-width: 0; }
@@ -1037,13 +1136,12 @@ const STILE = `
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  /* like the tooltip of Home Assistant's charts */
   .tooltip {
     position: absolute; z-index: 1; pointer-events: none; white-space: nowrap;
     background: var(--ha-card-background, var(--card-background-color, #fff));
-    border: 1px solid var(--divider-color); border-radius: 4px;
+    border: 1px solid var(--divider-color); border-radius: var(--ha-border-radius-sm, 4px);
     box-shadow: rgba(0, 0, 0, 0.2) 1px 2px 10px; padding: 8px 10px;
-    font-size: 12px; line-height: 18px; color: var(--primary-text-color);
+    font-size: var(--ha-font-size-s, 12px); line-height: 18px; color: var(--primary-text-color);
   }
   .tip-title { font-weight: var(--ha-font-weight-medium, 500); margin-bottom: 2px; }
   .tip-row { display: flex; align-items: center; gap: 6px; }
@@ -1051,14 +1149,18 @@ const STILE = `
   .tip-name { flex: 1; }
   .tip-value { font-weight: var(--ha-font-weight-medium, 500); margin-inline-start: 16px; font-variant-numeric: tabular-nums; }
 
+  @container (max-width: 300px) {
+    .facts, .facts.tre { grid-template-columns: 1fr; }
+    .stats.tre { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     * { transition-duration: 1ms !important; }
   }
 `;
 
-// --- Visual editor (ha-form, like the core cards) ---------------------------------
+// --- Visual editor ---------------------------------------------------------------
 
-// ha-form exists only once a core card editor has been loaded.
 const caricaHaForm = async () => {
   if (customElements.get("ha-form")) return;
   const helpers = await window.loadCardHelpers?.();
@@ -1112,12 +1214,13 @@ class AcegasContatoreCardEditor extends HTMLElement {
         ],
       },
       { name: "decimals", selector: { number: { min: 0, max: MAX_DECIMALI, step: 1, mode: "box" } } },
+      { name: "show_bills", selector: { boolean: {} } },
     ];
   }
 
   _render() {
     if (!this._connected || !this._hass || !this._config || !customElements.get("ha-form")) return;
-    const etichette = { device_id: "ed_device", name: "ed_name", icon: "ed_icon", decimals: "ed_decimals" };
+    const etichette = { device_id: "ed_device", name: "ed_name", icon: "ed_icon", decimals: "ed_decimals", show_bills: "ed_show_bills" };
     if (!this._form) {
       this._form = document.createElement("ha-form");
       this._form.schema = this._schemaCache;
@@ -1125,8 +1228,7 @@ class AcegasContatoreCardEditor extends HTMLElement {
       this._form.computeHelper = (s) => (s.name === "decimals" ? traduci(this._hass, "ed_decimals_helper") : undefined);
       this._form.addEventListener("value-changed", (ev) => {
         const config = { ...ev.detail.value };
-        // An emptied field leaves the option out; 'view' is from the first version.
-        for (const k of Object.keys(config)) if (config[k] === "" || config[k] == null) delete config[k];
+        for (const k of Object.keys(config)) if (config[k] === "" || config[k] == null || config[k] === false) delete config[k];
         delete config.view;
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
       });
@@ -1137,15 +1239,12 @@ class AcegasContatoreCardEditor extends HTMLElement {
     const firma = `${lingua(this._hass)}|${predefinito}|${JSON.stringify(this._config)}`;
     if (firma !== this._ultimoStatoForm) {
       this._ultimoStatoForm = firma;
-      this._form.data = { device_id: predefinito || undefined, ...this._config };
+      this._form.data = { device_id: predefinito || undefined, show_bills: false, ...this._config };
     }
   }
 }
 
-// --- Registration -------------------------------------------------------------------
-// Home Assistant swaps window.customElements for its own registry while it
-// starts, and this module can load earlier: define the elements once the app
-// exists, reading window.customElements at that moment.
+// --- Registration ----------------------------------------------------------------
 
 const registraElementi = () => {
   const registro = window.customElements;

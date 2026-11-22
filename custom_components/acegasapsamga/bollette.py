@@ -1,15 +1,15 @@
 """Bills: from the portal's bill list to what the sensors show.
 
 A bill can group several contracts of the same account: amounts are those
-of the whole bill. Only the fields the sensors use are kept, so the store
-holds no names, addresses or bank details.
+of the whole bill, while importi_servizi preserves the service-specific split
+from companyServices. Only safe non-PII fields are kept.
 
 No Home Assistant imports.
 """
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -47,13 +47,35 @@ class Bolletta:
     stato: str
     domiciliata: bool
     contratti: tuple[str, ...]
+    stato_dettaglio: str | None = None
+    bolletta_web: bool | None = None
+    pdf_disponibile: bool = False
+    rateizzabile: bool = False
+    pagopa: bool = False
+    bonifico: bool = False
+    sotto_soglia: bool = False
+    data_pagamento: date | None = None
+    importi_servizi: tuple[tuple[str, float], ...] = ()
+    stornata_da: str | None = None
 
     @property
     def da_pagare(self) -> bool:
         return self.stato in STATI_DA_PAGARE and self.residuo > 0
 
+    @property
+    def importi_servizi_dict(self) -> dict[str, float]:
+        return dict(self.importi_servizi)
+
+    def importo_servizio(self, servizio: str | None) -> float:
+        """Amount for one service in a grouped bill, or the full amount."""
+        if servizio and self.importi_servizi:
+            mappa = dict(self.importi_servizi)
+            if servizio in mappa:
+                return mappa[servizio]
+        return self.importo
+
     def come_dict(self) -> dict[str, Any]:
-        return {
+        risultato: dict[str, Any] = {
             "numero": self.numero,
             "emissione": self.emissione.isoformat(),
             "scadenza": self.scadenza.isoformat() if self.scadenza else None,
@@ -63,6 +85,27 @@ class Bolletta:
             "domiciliata": self.domiciliata,
             "contratti": list(self.contratti),
         }
+        if self.stato_dettaglio is not None:
+            risultato["stato_dettaglio"] = self.stato_dettaglio
+        if self.bolletta_web is not None:
+            risultato["bolletta_web"] = self.bolletta_web
+        if self.pdf_disponibile:
+            risultato["pdf_disponibile"] = True
+        if self.rateizzabile:
+            risultato["rateizzabile"] = True
+        if self.pagopa:
+            risultato["pagopa"] = True
+        if self.bonifico:
+            risultato["bonifico"] = True
+        if self.sotto_soglia:
+            risultato["sotto_soglia"] = True
+        if self.data_pagamento is not None:
+            risultato["data_pagamento"] = self.data_pagamento.isoformat()
+        if self.importi_servizi:
+            risultato["importi_servizi"] = dict(self.importi_servizi)
+        if self.stornata_da is not None:
+            risultato["stornata_da"] = self.stornata_da
+        return risultato
 
     @classmethod
     def da_dict(cls, dati: dict[str, Any]) -> Bolletta:
@@ -70,6 +113,15 @@ class Bolletta:
         if importo is None:
             raise ValueError(f"importo non valido: {dati['importo']!r}")
         residuo = _numero(dati.get("residuo"))
+        importi_raw = dati.get("importi_servizi")
+        importi_servizi: tuple[tuple[str, float], ...] = ()
+        if isinstance(importi_raw, dict):
+            puliti: dict[str, float] = {}
+            for k, v in importi_raw.items():
+                num = _numero(v)
+                if num is not None:
+                    puliti[str(k)] = num
+            importi_servizi = tuple(sorted(puliti.items()))
         return cls(
             numero=str(dati["numero"]),
             emissione=date.fromisoformat(dati["emissione"]),
@@ -79,6 +131,18 @@ class Bolletta:
             stato=dati.get("stato") or STATO_ALTRO,
             domiciliata=bool(dati.get("domiciliata")),
             contratti=tuple(dati.get("contratti") or ()),
+            stato_dettaglio=dati.get("stato_dettaglio"),
+            bolletta_web=dati.get("bolletta_web") if isinstance(dati.get("bolletta_web"), bool) else None,
+            pdf_disponibile=bool(dati.get("pdf_disponibile")),
+            rateizzabile=bool(dati.get("rateizzabile")),
+            pagopa=bool(dati.get("pagopa")),
+            bonifico=bool(dati.get("bonifico")),
+            sotto_soglia=bool(dati.get("sotto_soglia")),
+            data_pagamento=(
+                date.fromisoformat(dati["data_pagamento"]) if dati.get("data_pagamento") else None
+            ),
+            importi_servizi=importi_servizi,
+            stornata_da=str(dati["stornata_da"]) if dati.get("stornata_da") else None,
         )
 
 
@@ -107,6 +171,41 @@ def _stato(grezza: dict[str, Any]) -> str:
     return mappato
 
 
+def _stato_dettaglio(grezza: dict[str, Any]) -> str | None:
+    transcoding = grezza.get("paymentStatusTranscoding")
+    if not isinstance(transcoding, dict):
+        return None
+    testo = transcoding.get("customerTranscoding") or transcoding.get("transcoding")
+    return str(testo).strip() if testo and str(testo).strip() else None
+
+
+def _bolletta_web(grezza: dict[str, Any]) -> bool | None:
+    tipi = grezza.get("deliveryTypes")
+    if not isinstance(tipi, list) or not tipi:
+        return None
+    normalizzati = {str(t).upper() for t in tipi if t}
+    if not normalizzati:
+        return None
+    return bool(normalizzati & {"EMAIL", "PAPEREMAIL", "PEC"})
+
+
+def _servizi_e_storno(
+    grezza: dict[str, Any],
+) -> tuple[tuple[tuple[str, float], ...], str | None]:
+    somme: dict[str, float] = {}
+    stornata_da: str | None = None
+    for voce in grezza.get("companyServices") or []:
+        if not isinstance(voce, dict):
+            continue
+        tipo = str(voce.get("type") or "").strip().upper()
+        importo = _numero(voce.get("amount"))
+        if tipo and importo is not None:
+            somme[tipo] = round(somme.get(tipo, 0.0) + importo, 2)
+        if stornata_da is None and voce.get("reverserBillId"):
+            stornata_da = str(voce["reverserBillId"]).strip() or None
+    return tuple(sorted(somme.items())), stornata_da
+
+
 def _contratti(grezza: dict[str, Any]) -> tuple[str, ...]:
     codici = [c.get("contractId") for c in grezza.get("contractServiceTypeList") or [] if isinstance(c, dict)]
     codici.append(grezza.get("contractId"))
@@ -124,6 +223,7 @@ def estrai_bollette(grezze: list[dict[str, Any]]) -> list[Bolletta]:
         if not numero or emissione is None or importo is None or numero in viste:
             continue
         residuo = _numero(grezza.get("residual"))
+        importi_servizi, stornata_da = _servizi_e_storno(grezza)
         viste[numero] = Bolletta(
             numero=numero,
             emissione=emissione,
@@ -133,8 +233,68 @@ def estrai_bollette(grezze: list[dict[str, Any]]) -> list[Bolletta]:
             stato=_stato(grezza),
             domiciliata=bool(grezza.get("domicilied")),
             contratti=_contratti(grezza),
+            stato_dettaglio=_stato_dettaglio(grezza),
+            bolletta_web=_bolletta_web(grezza),
+            pdf_disponibile=bool(grezza.get("documentAvailable")),
+            rateizzabile=bool(grezza.get("installmentEnabled")),
+            pagopa=bool(grezza.get("pagoPaEnabled")),
+            bonifico=bool(grezza.get("bankTransferEnabled")),
+            sotto_soglia=bool(grezza.get("underthreshold")),
+            data_pagamento=giorno_da_ms(grezza.get("paymentDate")),
+            importi_servizi=importi_servizi,
+            stornata_da=stornata_da,
         )
     return ordina(list(viste.values()))
+
+
+def applica_pagamenti(
+    bollette: list[Bolletta], pagamenti: list[dict[str, Any]]
+) -> list[Bolletta]:
+    """Enrich bills with their actual payment date from bill/invoice/list."""
+    date_pagamento: dict[str, date] = {}
+    for movimento in pagamenti:
+        if not isinstance(movimento, dict):
+            continue
+        stato = str(movimento.get("paymentStatus") or "PAYMENT").upper()
+        if stato == "REFUND":
+            continue
+        giorno = giorno_da_ms(movimento.get("paymentDate") or movimento.get("valueDate"))
+        if giorno is None:
+            continue
+        for codice in movimento.get("billIds") or []:
+            numero = str(codice).strip()
+            if numero and (numero not in date_pagamento or giorno > date_pagamento[numero]):
+                date_pagamento[numero] = giorno
+    if not date_pagamento:
+        return bollette
+    return [
+        replace(b, data_pagamento=date_pagamento[b.numero])
+        if b.numero in date_pagamento and b.data_pagamento is None
+        else b
+        for b in bollette
+    ]
+
+
+def estrai_rimborsi(pagamenti: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Extract refund movements from bill/invoice/list."""
+    rimborsi: list[dict[str, Any]] = []
+    for movimento in pagamenti:
+        if not isinstance(movimento, dict):
+            continue
+        if str(movimento.get("paymentStatus") or "").upper() != "REFUND":
+            continue
+        giorno = giorno_da_ms(movimento.get("paymentDate") or movimento.get("valueDate"))
+        importo = _numero(movimento.get("amount"))
+        if giorno is None or importo is None:
+            continue
+        rimborsi.append(
+            {
+                "data": giorno.isoformat(),
+                "importo": importo,
+                "tipo": movimento.get("paymentType"),
+            }
+        )
+    return sorted(rimborsi, key=lambda r: r["data"], reverse=True)
 
 
 def ordina(bollette: list[Bolletta]) -> list[Bolletta]:

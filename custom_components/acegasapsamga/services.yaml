@@ -1,1 +1,70 @@
 configura_energy_dashboard:
+
+invia_autolettura:
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: acegasapsamga
+    contratto:
+      required: false
+      selector:
+        text:
+    valore:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 99999999
+          step: any
+          mode: box
+    f1:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 99999999
+          step: any
+          mode: box
+    f2:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 99999999
+          step: any
+          mode: box
+    f3:
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 99999999
+          step: any
+          mode: box
+
+scarica_bolletta:
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: acegasapsamga
+    contratto:
+      required: false
+      selector:
+        text:
+    numero:
+      required: false
+      selector:
+        text:
+    dettaglio:
+      required: false
+      default: false
+      selector:
+        boolean:
+    percorso:
+      required: false
+      selector:
+        text:

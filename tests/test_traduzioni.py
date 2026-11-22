@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from custom_components.acegasapsamga import lovelace_card
+
 PACCHETTO = Path(__file__).parent.parent / "custom_components" / "acegasapsamga"
 
 
@@ -35,24 +37,32 @@ def test_stessi_segnaposto():
 
 def test_chiavi_usate_nel_codice():
     italiano = _traduzioni("it")
-    codice = "\n".join(p.read_text() for p in PACCHETTO.glob("*.py"))
-    sensori = set(re.findall(r'chiave = "(\w+)"', codice))
+    sensor_code = (PACCHETTO / "sensor.py").read_text()
+    sensori = set(re.findall(r'chiave = "(\w+)"', sensor_code))
     assert sensori == set(italiano["entity"]["sensor"])
-    eccezioni = set(re.findall(r'translation_key="(\w+)"', codice))
-    assert eccezioni <= set(italiano["exceptions"])
+
+    codice = "\n".join(p.read_text() for p in PACCHETTO.glob("*.py"))
+    # translation_key is used for exceptions and repair issues.
+    chiavi_trad = set(re.findall(r'translation_key="(\w+)"', codice))
+    assert chiavi_trad <= (set(italiano["exceptions"]) | set(italiano["issues"]))
+
     config_flow = (PACCHETTO / "config_flow.py").read_text()
     blocco_errori = config_flow[
         config_flow.index("def errore_accesso") : config_flow.index("def etichetta")
     ]
     errori = set(re.findall(r'return "(\w+)"', blocco_errori)) | {"nessuna_scelta"}
     assert errori <= set(italiano["config"]["error"])
+
     icone = json.loads((PACCHETTO / "icons.json").read_text())
-    # Volume sensors keep the device class icon (water or gas).
+    # Meter reading and period consumption keep device class icons (water/gas/energy).
     assert set(icone["entity"]["sensor"]) == sensori - {"lettura", "consumo_periodo"}
+    assert set(icone["entity"]["calendar"]) == set(italiano["entity"]["calendar"])
+    assert set(icone["services"]) == set(italiano["services"])
 
 
-def test_versione_card_uguale_al_manifest():
+def test_versione_tutte_le_card_uguale_al_manifest():
     manifest = json.loads((PACCHETTO / "manifest.json").read_text())
-    card = (PACCHETTO / "frontend" / "acegasapsamga-contatore-card.js").read_text(encoding="utf-8")
-    versione = re.search(r'const VERSION = "([^"]+)"', card).group(1)
-    assert versione == manifest["version"]
+    for _, percorso in lovelace_card.percorsi_card():
+        card = percorso.read_text(encoding="utf-8")
+        versione = re.search(r'const VERSION = "([^"]+)"', card).group(1)
+        assert versione == manifest["version"], percorso.name

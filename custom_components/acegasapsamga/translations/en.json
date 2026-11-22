@@ -11,7 +11,7 @@
       },
       "contratti": {
         "title": "Choose the contracts",
-        "description": "Choose the contracts to follow. Each contract becomes a device with its own series in the Energy dashboard.",
+        "description": "Choose the contracts to follow (water, gas, electricity, district heating, waste). Each contract becomes a device with sensors, calendar and statistics.",
         "data": {
           "contratti": "Contracts"
         }
@@ -34,7 +34,7 @@
     },
     "abort": {
       "already_configured": "This account is already configured.",
-      "nessun_contratto": "The account has no water contract. Services found: {servizi}. Gas will come in a future version.",
+      "nessun_contratto": "The account has no supported contracts. Services found: {servizi}.",
       "account_diverso": "You signed in with a different AcegasApsAmga account.",
       "reauth_successful": "Sign-in updated."
     }
@@ -74,10 +74,25 @@
             "name": "Meter"
           },
           "pod": {
-            "name": "POD"
+            "name": "POD / PDR"
           },
           "statistic_id": {
             "name": "Statistic"
+          },
+          "servizio": {
+            "name": "Service"
+          },
+          "fasce": {
+            "name": "Time-of-use bands"
+          },
+          "teleletto": {
+            "name": "Smart meter"
+          },
+          "autolettura_disponibile": {
+            "name": "Self-reading available"
+          },
+          "diario_consumi": {
+            "name": "Consumption diary active"
           },
           "letture": {
             "name": "Readings"
@@ -99,8 +114,14 @@
           "giorni": {
             "name": "Days"
           },
+          "fasce": {
+            "name": "Time-of-use bands"
+          },
           "periodi": {
             "name": "Periods"
+          },
+          "consumi_giornalieri": {
+            "name": "Daily consumption"
           }
         }
       },
@@ -115,6 +136,18 @@
           },
           "aperta": {
             "name": "Open"
+          },
+          "giorni_mancanti": {
+            "name": "Days remaining"
+          },
+          "ultima_autolettura": {
+            "name": "Last self-reading"
+          },
+          "stato_ultima_autolettura": {
+            "name": "Last self-reading status"
+          },
+          "autoletture": {
+            "name": "Self-reading history"
           }
         }
       },
@@ -135,6 +168,21 @@
           },
           "domiciliata": {
             "name": "Direct debit"
+          },
+          "stato_dettaglio": {
+            "name": "Detailed status"
+          },
+          "bolletta_web": {
+            "name": "Paperless bill"
+          },
+          "pdf_disponibile": {
+            "name": "PDF available"
+          },
+          "data_pagamento": {
+            "name": "Payment date"
+          },
+          "importo_servizio": {
+            "name": "Service amount"
           },
           "bollette": {
             "name": "Bills"
@@ -159,8 +207,116 @@
           "reversed": "Reversed",
           "installment": "Installment plan",
           "other": "Other"
+        },
+        "state_attributes": {
+          "stato_dettaglio": {
+            "name": "Detailed status"
+          }
+        }
+      },
+      "svuotamenti_rifiuti": {
+        "name": "Current year disposals",
+        "state_attributes": {
+          "pod": {
+            "name": "Contract code"
+          },
+          "servizio": {
+            "name": "Service"
+          },
+          "anno_precedente": {
+            "name": "Previous year disposals"
+          },
+          "per_tipo": {
+            "name": "By waste type"
+          },
+          "per_mese": {
+            "name": "By month"
+          },
+          "vantaggi": {
+            "name": "Discounts"
+          },
+          "svuotamenti": {
+            "name": "Disposals"
+          }
+        }
+      },
+      "volume_rifiuti": {
+        "name": "Current year waste volume",
+        "state_attributes": {
+          "anno_precedente": {
+            "name": "Previous year volume"
+          },
+          "per_tipo": {
+            "name": "By waste type"
+          }
+        }
+      },
+      "dotazioni_rifiuti": {
+        "name": "Active waste equipment",
+        "state_attributes": {
+          "totale": {
+            "name": "Total equipment"
+          },
+          "dotazioni": {
+            "name": "Equipment"
+          }
+        }
+      },
+      "scadenza_password": {
+        "name": "Password expiration",
+        "state_attributes": {
+          "giorni_rimanenti": {
+            "name": "Days remaining"
+          },
+          "ultimo_cambio": {
+            "name": "Last changed"
+          },
+          "rinnovo_richiesto": {
+            "name": "Renewal required"
+          },
+          "nuove_condizioni_accettate": {
+            "name": "New terms accepted"
+          }
+        }
+      },
+      "notifiche": {
+        "name": "Unread notifications",
+        "state_attributes": {
+          "totale": {
+            "name": "Total notifications"
+          },
+          "ultima_notifica": {
+            "name": "Latest notification"
+          },
+          "data_ultima_notifica": {
+            "name": "Latest notification date"
+          },
+          "avvisi_idrici_attivi": {
+            "name": "Water outage alerts"
+          },
+          "notifiche": {
+            "name": "Notifications"
+          },
+          "avvisi_configurati": {
+            "name": "Configured alerts"
+          }
         }
       }
+    },
+    "calendar": {
+      "calendario": {
+        "name": "Bills and self-reading calendar"
+      }
+    }
+  },
+  "issues": {
+    "password_in_scadenza": {
+      "title": "AcegasApsAmga password expiring soon ({email})",
+      "description": "The Servizi Online password for {email} expires on {scadenza} ({giorni} days left). Update it on the AcegasApsAmga portal before it expires, then update your credentials in Home Assistant."
+    },
+    "nuove_condizioni": {
+      "title": "New portal terms require acceptance ({email})",
+      "description": "The Servizi Online portal requires accepting updated terms for {email}. Sign in to the portal to accept them so the integration keeps working."
     }
   },
   "exceptions": {
@@ -169,12 +325,92 @@
     },
     "nessuna_configurazione": {
       "message": "No AcegasApsAmga setup is loaded."
+    },
+    "contratto_non_trovato": {
+      "message": "AcegasApsAmga contract not found: {contratto}."
+    },
+    "servizio_senza_autolettura": {
+      "message": "The {servizio} service does not support self-reading submission."
+    },
+    "autolettura_valore_mancante": {
+      "message": "Provide 'valore' (or 'f1', 'f2', 'f3' for a multi-band electricity meter)."
+    },
+    "autolettura_inferiore": {
+      "message": "The portal rejected the self-reading (code 692): value is lower than the previous reading."
+    },
+    "autolettura_fuori_finestra": {
+      "message": "The portal rejected the self-reading (code 695): the contract is outside its self-reading window."
+    },
+    "nessuna_bolletta": {
+      "message": "No bill available for this contract."
+    },
+    "percorso_non_valido": {
+      "message": "Invalid path ({percorso}): must be a .pdf file inside Home Assistant's config directory."
+    },
+    "errore_portale": {
+      "message": "Error from the AcegasApsAmga portal: {messaggio}"
     }
   },
   "services": {
     "configura_energy_dashboard": {
       "name": "Configure Energy dashboard",
-      "description": "Adds the water consumption of every configured contract to the Energy dashboard. Existing sources are left as they are, so it is safe to run again after adding a contract."
+      "description": "Adds water, gas and electricity consumption of every configured contract to the Energy dashboard. Existing sources are left unchanged."
+    },
+    "invia_autolettura": {
+      "name": "Submit self-reading",
+      "description": "Submits a meter self-reading (water, gas, district heating, or mono/multi-band electricity) to AcegasApsAmga Servizi Online.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "Meter device to submit the reading for (optional if only one contract is configured)."
+        },
+        "contratto": {
+          "name": "Contract number",
+          "description": "Alternative to device: the contract identifier."
+        },
+        "valore": {
+          "name": "Reading value",
+          "description": "Meter value for water, gas, district heating, or mono-band electricity (F0)."
+        },
+        "f1": {
+          "name": "Band F1",
+          "description": "Band F1 reading for a multi-band electricity meter (kWh)."
+        },
+        "f2": {
+          "name": "Band F2",
+          "description": "Band F2 reading for a multi-band electricity meter (kWh)."
+        },
+        "f3": {
+          "name": "Band F3",
+          "description": "Band F3 reading for a multi-band electricity meter (kWh)."
+        }
+      }
+    },
+    "scarica_bolletta": {
+      "name": "Download bill PDF",
+      "description": "Downloads a bill PDF (latest bill by default) into Home Assistant's config directory.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "Contract device to download the bill for (optional if only one contract is configured)."
+        },
+        "contratto": {
+          "name": "Contract number",
+          "description": "Alternative to device: the contract identifier."
+        },
+        "numero": {
+          "name": "Bill number",
+          "description": "Bill number to download. Defaults to the latest bill."
+        },
+        "dettaglio": {
+          "name": "Detailed PDF",
+          "description": "Download the detailed bill PDF (v2 endpoint)."
+        },
+        "percorso": {
+          "name": "Target path",
+          "description": "Destination .pdf path inside Home Assistant's config directory (default: www/acegasapsamga/bolletta_<number>.pdf)."
+        }
+      }
     }
   }
 }

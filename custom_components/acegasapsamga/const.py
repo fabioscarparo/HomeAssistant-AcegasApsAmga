@@ -36,12 +36,28 @@ API_REFERER = "ACEGAS"
 DIMENSIONE_PAGINA = 100
 MAX_PAGINE = 20
 
-# --- Services -------------------------------------------------------------------
+# --- Services -----------------------------------------------------------------
 SERVIZIO_ACQUA = "WATER"
 SERVIZIO_GAS = "GAS"
+SERVIZIO_LUCE = "ELECTRIC"
+SERVIZIO_TLR = "HEATING"
+SERVIZIO_AMBIENTE = "ENVIRONMENT"
 
-# Gas is ready in the code but disabled until there is an account to test it.
-SERVIZI_SUPPORTATI = (SERVIZIO_ACQUA,)
+SERVIZI_CONSUMO = (
+    SERVIZIO_ACQUA,
+    SERVIZIO_GAS,
+    SERVIZIO_LUCE,
+    SERVIZIO_TLR,
+)
+SERVIZI_SUPPORTATI = (
+    SERVIZIO_ACQUA,
+    SERVIZIO_GAS,
+    SERVIZIO_LUCE,
+    SERVIZIO_TLR,
+    SERVIZIO_AMBIENTE,
+)
+
+TIPI_RIFIUTO = ("RSU", "CARTA", "VETRO", "PLASTICA", "ORGANICO")
 
 # Estimated readings are billing estimates, not meter values.
 TIPO_LETTURA_STIMATA = "ESTIMATED"
@@ -50,17 +66,28 @@ STATI_LETTURA_NON_VALIDI = frozenset({"KO", "IN_CHARGE"})
 
 FUSO_ITALIA = "Europe/Rome"
 
-# --- Config entry -----------------------------------------------------------------
+# --- Home Assistant actions ---------------------------------------------------
+SERVIZIO_CONFIGURA_ENERGY_DASHBOARD = "configura_energy_dashboard"
+SERVIZIO_INVIA_AUTOLETTURA = "invia_autolettura"
+SERVIZIO_SCARICA_BOLLETTA = "scarica_bolletta"
+
+# --- Config entry -------------------------------------------------------------
 CONF_CONTRATTI = "contratti"
 CONF_ID_UTENTE = "id_utente"
 
-# --- Updates ----------------------------------------------------------------------
+# --- Updates & limits ---------------------------------------------------------
 # Readings arrive about once a month: four checks a day are plenty.
 INTERVALLO_AGGIORNAMENTO_ORE = 6
 
+# Warn with a Repair Issue when password expiration is within this many days.
+GIORNI_AVVISO_PASSWORD = 15
+
 # Readings, reading periods and bills listed in the sensors' attributes. The
-# card browses periods and bills year by year: about ten years of them. They
+# cards browse periods and bills year by year: about ten years of them. They
 # are not recorded, so their size does not weigh on the database.
 MAX_LETTURE_ATTRIBUTO = 36
 MAX_PERIODI_ATTRIBUTO = 120
 MAX_BOLLETTE_ATTRIBUTO = 120
+MAX_AUTOLETTURE_ATTRIBUTO = 20
+MAX_NOTIFICHE_ATTRIBUTO = 20
+MAX_SVUOTAMENTI_ATTRIBUTO = 100

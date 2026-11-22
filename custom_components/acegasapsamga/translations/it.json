@@ -11,7 +11,7 @@
       },
       "contratti": {
         "title": "Scegli i contratti",
-        "description": "Scegli i contratti da seguire. Ogni contratto diventa un dispositivo con la sua serie nella dashboard Energia.",
+        "description": "Scegli i contratti da seguire (acqua, gas, luce, teleriscaldamento, rifiuti). Ogni contratto diventa un dispositivo con sensori, calendario e statistiche.",
         "data": {
           "contratti": "Contratti"
         }
@@ -34,7 +34,7 @@
     },
     "abort": {
       "already_configured": "Questo account è già configurato.",
-      "nessun_contratto": "L'account non ha contratti acqua. Servizi trovati: {servizi}. Il gas arriverà in una prossima versione.",
+      "nessun_contratto": "L'account non ha contratti supportati. Servizi trovati: {servizi}.",
       "account_diverso": "Hai effettuato l'accesso con un altro account AcegasApsAmga.",
       "reauth_successful": "Accesso aggiornato."
     }
@@ -74,10 +74,25 @@
             "name": "Contatore"
           },
           "pod": {
-            "name": "POD"
+            "name": "POD / PDR"
           },
           "statistic_id": {
             "name": "Statistica"
+          },
+          "servizio": {
+            "name": "Servizio"
+          },
+          "fasce": {
+            "name": "Fasce orarie"
+          },
+          "teleletto": {
+            "name": "Teleletto"
+          },
+          "autolettura_disponibile": {
+            "name": "Autolettura disponibile"
+          },
+          "diario_consumi": {
+            "name": "Diario dei Consumi attivo"
           },
           "letture": {
             "name": "Letture"
@@ -99,8 +114,14 @@
           "giorni": {
             "name": "Giorni"
           },
+          "fasce": {
+            "name": "Fasce orarie"
+          },
           "periodi": {
             "name": "Periodi"
+          },
+          "consumi_giornalieri": {
+            "name": "Consumi giornalieri"
           }
         }
       },
@@ -115,6 +136,18 @@
           },
           "aperta": {
             "name": "Aperta"
+          },
+          "giorni_mancanti": {
+            "name": "Giorni mancanti"
+          },
+          "ultima_autolettura": {
+            "name": "Ultima autolettura"
+          },
+          "stato_ultima_autolettura": {
+            "name": "Stato ultima autolettura"
+          },
+          "autoletture": {
+            "name": "Storico autoletture"
           }
         }
       },
@@ -135,6 +168,21 @@
           },
           "domiciliata": {
             "name": "Domiciliata"
+          },
+          "stato_dettaglio": {
+            "name": "Dettaglio stato"
+          },
+          "bolletta_web": {
+            "name": "Bolletta Web"
+          },
+          "pdf_disponibile": {
+            "name": "PDF disponibile"
+          },
+          "data_pagamento": {
+            "name": "Data pagamento"
+          },
+          "importo_servizio": {
+            "name": "Importo servizio"
           },
           "bollette": {
             "name": "Bollette"
@@ -159,8 +207,116 @@
           "reversed": "Stornata",
           "installment": "Rateizzata",
           "other": "Altro"
+        },
+        "state_attributes": {
+          "stato_dettaglio": {
+            "name": "Dettaglio stato"
+          }
+        }
+      },
+      "svuotamenti_rifiuti": {
+        "name": "Svuotamenti anno corrente",
+        "state_attributes": {
+          "pod": {
+            "name": "Codice utenza"
+          },
+          "servizio": {
+            "name": "Servizio"
+          },
+          "anno_precedente": {
+            "name": "Svuotamenti anno precedente"
+          },
+          "per_tipo": {
+            "name": "Per frazione"
+          },
+          "per_mese": {
+            "name": "Per mese"
+          },
+          "vantaggi": {
+            "name": "Agevolazioni"
+          },
+          "svuotamenti": {
+            "name": "Svuotamenti"
+          }
+        }
+      },
+      "volume_rifiuti": {
+        "name": "Volume rifiuti anno corrente",
+        "state_attributes": {
+          "anno_precedente": {
+            "name": "Volume anno precedente"
+          },
+          "per_tipo": {
+            "name": "Per frazione"
+          }
+        }
+      },
+      "dotazioni_rifiuti": {
+        "name": "Dotazioni rifiuti attive",
+        "state_attributes": {
+          "totale": {
+            "name": "Totale dotazioni"
+          },
+          "dotazioni": {
+            "name": "Dotazioni"
+          }
+        }
+      },
+      "scadenza_password": {
+        "name": "Scadenza password",
+        "state_attributes": {
+          "giorni_rimanenti": {
+            "name": "Giorni rimanenti"
+          },
+          "ultimo_cambio": {
+            "name": "Ultimo cambio"
+          },
+          "rinnovo_richiesto": {
+            "name": "Rinnovo richiesto"
+          },
+          "nuove_condizioni_accettate": {
+            "name": "Nuove condizioni accettate"
+          }
+        }
+      },
+      "notifiche": {
+        "name": "Notifiche non lette",
+        "state_attributes": {
+          "totale": {
+            "name": "Totale notifiche"
+          },
+          "ultima_notifica": {
+            "name": "Ultima notifica"
+          },
+          "data_ultima_notifica": {
+            "name": "Data ultima notifica"
+          },
+          "avvisi_idrici_attivi": {
+            "name": "Avvisi interruzioni idriche"
+          },
+          "notifiche": {
+            "name": "Notifiche"
+          },
+          "avvisi_configurati": {
+            "name": "Avvisi configurati"
+          }
         }
       }
+    },
+    "calendar": {
+      "calendario": {
+        "name": "Calendario scadenze e autoletture"
+      }
+    }
+  },
+  "issues": {
+    "password_in_scadenza": {
+      "title": "Password AcegasApsAmga in scadenza ({email})",
+      "description": "La password dell'account {email} sui Servizi Online scade il {scadenza} (tra {giorni} giorni). Aggiornala sul portale AcegasApsAmga prima della scadenza e poi aggiorna le credenziali in Home Assistant."
+    },
+    "nuove_condizioni": {
+      "title": "Nuove condizioni contrattuali da accettare ({email})",
+      "description": "Il portale Servizi Online richiede l'accettazione delle nuove condizioni per l'account {email}. Accedi al portale per confermarle ed evitare blocchi dell'integrazione."
     }
   },
   "exceptions": {
@@ -169,12 +325,92 @@
     },
     "nessuna_configurazione": {
       "message": "Nessuna configurazione AcegasApsAmga attiva."
+    },
+    "contratto_non_trovato": {
+      "message": "Contratto AcegasApsAmga non trovato: {contratto}."
+    },
+    "servizio_senza_autolettura": {
+      "message": "Il servizio {servizio} non supporta l'invio dell'autolettura."
+    },
+    "autolettura_valore_mancante": {
+      "message": "Specifica 'valore' (o le fasce 'f1', 'f2', 'f3' per un contatore luce multiorario)."
+    },
+    "autolettura_inferiore": {
+      "message": "Il portale ha rifiutato l'autolettura (codice 692): il valore è inferiore alla lettura precedente."
+    },
+    "autolettura_fuori_finestra": {
+      "message": "Il portale ha rifiutato l'autolettura (codice 695): il contratto non è nella finestra di autolettura."
+    },
+    "nessuna_bolletta": {
+      "message": "Nessuna bolletta disponibile per questo contratto."
+    },
+    "percorso_non_valido": {
+      "message": "Percorso non valido ({percorso}): deve essere un file .pdf dentro la cartella di configurazione di Home Assistant."
+    },
+    "errore_portale": {
+      "message": "Errore dal portale AcegasApsAmga: {messaggio}"
     }
   },
   "services": {
     "configura_energy_dashboard": {
       "name": "Configura dashboard Energia",
-      "description": "Aggiunge alla dashboard Energia il consumo d'acqua di ogni contratto configurato. Le sorgenti già presenti restano come sono, quindi puoi rilanciarla dopo aver aggiunto un contratto."
+      "description": "Aggiunge alla dashboard Energia i consumi di acqua, gas e luce dei contratti configurati. Le sorgenti già presenti restano invariate."
+    },
+    "invia_autolettura": {
+      "name": "Invia autolettura",
+      "description": "Invia un'autolettura del contatore (acqua, gas, teleriscaldamento o luce mono/multioraria) ai Servizi Online di AcegasApsAmga.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Il contatore a cui inviare l'autolettura (opzionale se hai un solo contratto)."
+        },
+        "contratto": {
+          "name": "Numero contratto",
+          "description": "In alternativa al dispositivo, il codice contratto."
+        },
+        "valore": {
+          "name": "Valore lettura",
+          "description": "Valore del contatore per acqua, gas, teleriscaldamento o luce monoraria (F0)."
+        },
+        "f1": {
+          "name": "Fascia F1",
+          "description": "Lettura fascia F1 per contatore luce multiorario (kWh)."
+        },
+        "f2": {
+          "name": "Fascia F2",
+          "description": "Lettura fascia F2 per contatore luce multiorario (kWh)."
+        },
+        "f3": {
+          "name": "Fascia F3",
+          "description": "Lettura fascia F3 per contatore luce multiorario (kWh)."
+        }
+      }
+    },
+    "scarica_bolletta": {
+      "name": "Scarica bolletta PDF",
+      "description": "Scarica il PDF di una bolletta (di default la più recente) dentro la cartella di configurazione di Home Assistant.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Il contratto di cui scaricare la bolletta (opzionale se hai un solo contratto)."
+        },
+        "contratto": {
+          "name": "Numero contratto",
+          "description": "In alternativa al dispositivo, il codice contratto."
+        },
+        "numero": {
+          "name": "Numero bolletta",
+          "description": "Numero della bolletta da scaricare. Se omesso usa l'ultima bolletta."
+        },
+        "dettaglio": {
+          "name": "Versione di dettaglio",
+          "description": "Se attivo scarica il PDF dettagliato (endpoint v2)."
+        },
+        "percorso": {
+          "name": "Percorso di destinazione",
+          "description": "Percorso .pdf dentro la cartella config di Home Assistant (predefinito: www/acegasapsamga/bolletta_<numero>.pdf)."
+        }
+      }
     }
   }
 }
