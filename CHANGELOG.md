@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0-beta.4
+
+- Updated the integration brand icons (`icon.svg`, `brand/icon.png` and
+  `brand/icon@2x.png`) with solid white inner bars for crisp dark-mode contrast.
+- Replaced the single-card README preview with a light and dark 6-card vector
+  wall (`docs/images/wall-light.svg` and `docs/images/wall-dark.svg`) showing
+  all 4 Lovelace cards across all supported services, and removed the old
+  single-card preview assets.
+
 ## 0.4.0-beta.3
 
 - Removed angle-bracket placeholders from `scarica_bolletta` translation

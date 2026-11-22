@@ -46,8 +46,8 @@ account alerts.
 - **Italian and English**, following each user's language.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/contatore-card-dark.svg">
-  <img alt="The meter card, with simulated data" src="docs/images/contatore-card-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/wall-dark.svg">
+  <img alt="AcegasApsAmga Lovelace cards: Electricity (F1/F2/F3), Waste/TARI, Bills & Account, Water, Gas, and District Heating, with simulated data" src="docs/images/wall-light.svg">
 </picture>
 
 ## Quick start

@@ -86,16 +86,6 @@ bills.
 With `--salva` it also saves the raw answers to `verifica_*.json`: they
 contain personal data, never commit them.
 
-## Images
-
-- `custom_components/acegasapsamga/brand/`: the integration's icon, 256 and
-  512 px, shown by Home Assistant 2026.3+.
-- `docs/images/header.svg`: the README header.
-- `docs/images/icon.svg`: the icon as a vector.
-- `docs/images/contatore-card-light.svg` and `-dark.svg`: the card in the
-  README, rendered from the real card with simulated data, text drawn as
-  paths. Render them again whenever the card changes look.
-
 ## Development
 
 ```bash
