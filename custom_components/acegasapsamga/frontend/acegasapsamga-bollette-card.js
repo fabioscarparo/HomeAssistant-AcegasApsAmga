@@ -16,7 +16,7 @@
 
 const CARD_TYPE = "acegasapsamga-bollette-card";
 const EDITOR_TYPE = "acegasapsamga-bollette-card-editor";
-const VERSION = "0.4.0-beta.2";
+const VERSION = "0.4.0-beta.3";
 const DOMAIN = "acegasapsamga";
 const DEFAULT_MAX_BILLS = 8;
 const URL_CONFIGURA = "/_my_redirect/config_flow_start?domain=acegasapsamga";

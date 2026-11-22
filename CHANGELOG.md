@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0-beta.3
+
+- Removed angle-bracket placeholders from `scarica_bolletta` translation
+  descriptions so Hassfest validation passes cleanly, and added a translation
+  test guard for HTML-like sequences.
+
 ## 0.4.0-beta.2
 
 - Added full multi-service support for Water, Gas, Electricity (with F1/F2/F3

@@ -14,7 +14,7 @@
 
 const CARD_TYPE = "acegasapsamga-rifiuti-card";
 const EDITOR_TYPE = "acegasapsamga-rifiuti-card-editor";
-const VERSION = "0.4.0-beta.2";
+const VERSION = "0.4.0-beta.3";
 const DOMAIN = "acegasapsamga";
 const URL_CONFIGURA = "/_my_redirect/config_flow_start?domain=acegasapsamga";
 const STATI_DA_PAGARE = ["unpaid", "expired", "paid_partial"];
