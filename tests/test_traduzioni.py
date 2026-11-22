@@ -33,6 +33,9 @@ def test_stessi_segnaposto():
         for parte in chiave.split("."):
             it_testo, en_testo = it_testo[parte], en_testo[parte]
         assert set(re.findall(r"\{(\w+)\}", it_testo)) == set(re.findall(r"\{(\w+)\}", en_testo)), chiave
+        # Hassfest rejects angle-bracket sequences as HTML in translation strings.
+        assert not re.search(r"<[^>]+>", it_testo), f"it:{chiave}"
+        assert not re.search(r"<[^>]+>", en_testo), f"en:{chiave}"
 
 
 def test_chiavi_usate_nel_codice():

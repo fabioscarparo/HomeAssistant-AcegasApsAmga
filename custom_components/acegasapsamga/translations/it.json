@@ -408,7 +408,7 @@
         },
         "percorso": {
           "name": "Percorso di destinazione",
-          "description": "Percorso .pdf dentro la cartella config di Home Assistant (predefinito: www/acegasapsamga/bolletta_<numero>.pdf)."
+          "description": "Percorso .pdf dentro la cartella config di Home Assistant (predefinito: www/acegasapsamga/bolletta_NUMERO.pdf)."
         }
       }
     }

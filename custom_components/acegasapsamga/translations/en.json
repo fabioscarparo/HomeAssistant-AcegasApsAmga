@@ -408,7 +408,7 @@
         },
         "percorso": {
           "name": "Target path",
-          "description": "Destination .pdf path inside Home Assistant's config directory (default: www/acegasapsamga/bolletta_<number>.pdf)."
+          "description": "Destination .pdf path inside Home Assistant's config directory (default: www/acegasapsamga/bolletta_NUMBER.pdf)."
         }
       }
     }
