@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.4.0-beta.2
+
+- Added full multi-service support for Water, Gas, Electricity (with F1/F2/F3
+  time-of-use bands and Energy Dashboard grid source), District Heating
+  (kWh/MWh) and Waste / TARI (TCP disposals, volumes, fractions, equipment and
+  discounts).
+- Enriched bill and contract data with detailed portal statuses, per-service
+  splits from `companyServices`, actual payment dates from `bill/invoice/list`,
+  paperless and PDF availability flags, self-reading archive, remaining days
+  countdown, optional daily reads and VAS / Diario dei Consumi flags.
+- Added account-level diagnostic sensors and Repair Issues for 180-day portal
+  password expiration and new terms acceptance, plus unread portal notifications
+  and active water outage alert status.
+- Added a native Calendar platform exposing upcoming self-reading windows and
+  unpaid bill due dates.
+- Added Home Assistant actions to submit meter self-readings
+  (`acegasapsamga.invia_autolettura`) and download bill PDFs
+  (`acegasapsamga.scarica_bolletta`).
+- Added three new built-in Lovelace cards (`acegasapsamga-luce-card`,
+  `acegasapsamga-rifiuti-card`, `acegasapsamga-bollette-card`) alongside the
+  updated `acegasapsamga-contatore-card`: hidden-by-default bill summaries on
+  consumption cards (optional `show_bills` toggle), interactive stacked band and
+  waste-fraction charts, utility-grouped bill overview, and consistent native
+  Home Assistant empty and error states.
+
 ## 0.4.0-beta.1
 
 - Excluded rejected (`KO`), pending (`IN_CHARGE`) and unknown readings from real
