@@ -1,30 +1,16 @@
 # Changelog
 
-## 0.4.0-beta.4
-
-- Updated the integration brand icons (`icon.svg`, `brand/icon.png` and
-  `brand/icon@2x.png`) with solid white inner bars for crisp dark-mode contrast.
-- Replaced the single-card README preview with a light and dark 6-card vector
-  wall (`docs/images/wall-light.svg` and `docs/images/wall-dark.svg`) showing
-  all 4 Lovelace cards across all supported services, and removed the old
-  single-card preview assets.
-
-## 0.4.0-beta.3
-
-- Removed angle-bracket placeholders from `scarica_bolletta` translation
-  descriptions so Hassfest validation passes cleanly, and added a translation
-  test guard for HTML-like sequences.
-
-## 0.4.0-beta.2
+## 0.4.0
 
 - Added full multi-service support for Water, Gas, Electricity (with F1/F2/F3
   time-of-use bands and Energy Dashboard grid source), District Heating
   (kWh/MWh) and Waste / TARI (TCP disposals, volumes, fractions, equipment and
   discounts).
-- Enriched bill and contract data with detailed portal statuses, per-service
-  splits from `companyServices`, actual payment dates from `bill/invoice/list`,
-  paperless and PDF availability flags, self-reading archive, remaining days
-  countdown, optional daily reads and VAS / Diario dei Consumi flags.
+- Enriched bill and contract data with detailed portal statuses (including
+  partial reversals, under-threshold bills and installment plans), per-service
+  splits on combined bills, actual payment dates, paperless and PDF availability
+  flags, self-reading history and remaining-days countdown, optional daily reads
+  and VAS / Diario dei Consumi flags.
 - Added account-level diagnostic sensors and Repair Issues for 180-day portal
   password expiration and new terms acceptance, plus unread portal notifications
   and active water outage alert status.
@@ -35,31 +21,18 @@
   (`acegasapsamga.scarica_bolletta`).
 - Added three new built-in Lovelace cards (`acegasapsamga-luce-card`,
   `acegasapsamga-rifiuti-card`, `acegasapsamga-bollette-card`) alongside the
-  updated `acegasapsamga-contatore-card`: hidden-by-default bill summaries on
+  redesigned `acegasapsamga-contatore-card`: hidden-by-default bill summaries on
   consumption cards (optional `show_bills` toggle), interactive stacked band and
-  waste-fraction charts, utility-grouped bill overview, and consistent native
-  Home Assistant empty and error states.
-
-## 0.4.0-beta.1
-
-- Excluded rejected (`KO`), pending (`IN_CHARGE`) and unknown readings from real
-  readings, and guarded reading and bill parsing against invalid values.
-- Added bill statuses for partial reversals, under-threshold bills and
-  installment plans, deduplicated paginated bills and increased the bills
-  attribute limit to 120.
-- Made B2C sign-in resilient to transient server/OAuth errors, cleared all
-  session cookies on login and preserved refresh tokens when not rotated.
-- Loaded cached data without blocking Home Assistant startup, stopped polling on
-  failed auth, parallelized portal API calls, removed unused usage API calls and
-  appended Recorder statistics incrementally.
-- Normalized statistic IDs, cleaned up devices and entities when removing
-  contracts in options, allowed updating the email during reauth, kept device
-  serial numbers in sync after meter replacements and closed anonymization gaps
-  in diagnostics.
-- Improved the meter card: direct-debit status per unpaid bill, accurate annual
-  bill totals excluding reversed bills, missing device alert, theme redraws,
-  semantic buttons, keyboard/touch tooltip handling and faster rendering/editor.
-- Added `ruff` and `pytest` checks to CI.
+  waste-fraction charts, utility-grouped bills overview, keyboard/touch tooltips
+  and native Home Assistant empty and error states.
+- Hardened authentication, coordinator and diagnostics: resilient B2C sign-in
+  and session handling, non-blocking cached startup, incremental Recorder
+  statistics, normalized statistic IDs, clean device/entity removal when
+  updating contracts, email update during reauth, meter serial sync and complete
+  diagnostics anonymization.
+- Updated integration brand icons (`icon.svg`, `brand/icon.png` and
+  `brand/icon@2x.png`) for crisp dark-mode contrast, added a light/dark 6-card
+  README wall and added `ruff` and `pytest` checks to CI.
 
 ## 0.3.0
 
