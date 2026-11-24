@@ -15,11 +15,13 @@
 
 const CARD_TYPE = "acegasapsamga-luce-card";
 const EDITOR_TYPE = "acegasapsamga-luce-card-editor";
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 const DOMAIN = "acegasapsamga";
 const MAX_DECIMALI = 3;
 const DAY_MS = 24 * 3600000;
 const URL_CONFIGURA = "/_my_redirect/config_flow_start?domain=acegasapsamga";
+// With the integration already set up, contracts are chosen from its page.
+const URL_INTEGRAZIONE = "/config/integrations/integration/acegasapsamga";
 const STATI_DA_PAGARE = ["unpaid", "expired", "paid_partial"];
 const FASCE = ["F1", "F2", "F3"];
 
@@ -33,6 +35,7 @@ const STRINGS = {
     per_day: "kWh al giorno",
     period_line: "{from} - {to} · {value} in {days} giorni",
     previous_period: "Periodo precedente",
+    bands_year: "Fasce orarie {year}",
     bill_due: "Bolletta da pagare",
     bills_due: "{count} bollette da pagare",
     bill_overdue: "Bolletta scaduta",
@@ -56,11 +59,13 @@ const STRINGS = {
     not_configured_title: "Nessun contratto luce",
     not_configured_text: "Configura un contratto luce nell'integrazione AcegasApsAmga per usare questa card.",
     not_configured_sub: "Non configurata",
+    no_contract_sub: "Contratto non attivo",
     device_not_found_title: "Contatore luce non trovato",
     device_not_found_text: "Il contatore luce selezionato non è più disponibile. Scegline un altro dalle impostazioni.",
     device_not_found_sub: "Dispositivo non disponibile",
     ask_admin: "Chiedi a un amministratore di farlo.",
     configure: "Configura",
+    manage: "Gestisci",
     chart: "Consumo elettrico giornaliero per fascia nel {year}",
     ed_device: "Contatore luce",
     ed_name: "Nome",
@@ -78,6 +83,7 @@ const STRINGS = {
     per_day: "kWh a day",
     period_line: "{from} - {to} · {value} in {days} days",
     previous_period: "Previous period",
+    bands_year: "Time bands {year}",
     bill_due: "Bill to pay",
     bills_due: "{count} bills to pay",
     bill_overdue: "Bill overdue",
@@ -101,11 +107,13 @@ const STRINGS = {
     not_configured_title: "No electricity contract",
     not_configured_text: "Configure an electricity contract in the AcegasApsAmga integration to use this card.",
     not_configured_sub: "Not configured",
+    no_contract_sub: "No active contract",
     device_not_found_title: "Electricity meter not found",
     device_not_found_text: "The selected electricity meter is no longer available. Pick another in card settings.",
     device_not_found_sub: "Device unavailable",
     ask_admin: "Ask an administrator to do it.",
     configure: "Set up",
+    manage: "Manage",
     chart: "Daily electricity consumption by band in {year}",
     ed_device: "Electricity meter",
     ed_name: "Name",
@@ -121,8 +129,12 @@ const lingua = (hass) => ((hass?.locale?.language || hass?.language || "en").toL
 const traduci = (hass, key, vars = {}) => {
   let s = STRINGS[lingua(hass)][key] ?? STRINGS.en[key] ?? key;
   for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, () => String(v));
-  return s;
+  return lingua(hass) === "it" ? elidi(s) : s;
 };
+
+// "il 1 dic" / "il 8 dic" becomes "l'1 dic" / "l'8 dic": Italian elides the article before 1, 8 and 11.
+const ELISIONI = { il: "l'", Il: "L'", al: "all'", Al: "All'", dal: "dall'", Dal: "Dall'" };
+const elidi = (s) => s.replace(/\b(il|Il|al|Al|dal|Dal) (?=(?:1|8|11)(?!\d))/g, (_, articolo) => ELISIONI[articolo]);
 
 const naviga = (percorso) => {
   history.pushState(null, "", percorso);
@@ -241,11 +253,11 @@ const labToRgb = ([l, a, bb]) => {
   return [r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, v))));
 };
 
-// Shifts CIELAB lightness by 18 per band step: darker in light theme, lighter in dark theme.
+// Shifts CIELAB lightness by 12 per band step: darker in light theme, lighter in dark theme.
 const sfumatura = (rgb, indice, scuro) => {
   if (!indice) return rgb;
   const lab = rgbToLab(rgb);
-  lab[0] += (scuro ? 18 : -18) * indice;
+  lab[0] += (scuro ? 12 : -12) * indice;
   return labToRgb(lab);
 };
 
@@ -640,6 +652,7 @@ class AcegasLuceCard extends HTMLElement {
       return;
     }
     blocco.hidden = false;
+    blocco.querySelector(".fasce-title").textContent = traduci(this._hass, "bands_year", { year: this._anno });
     const split = blocco.querySelector(".split");
     split.setAttribute(
       "aria-label",
@@ -713,9 +726,11 @@ class AcegasLuceCard extends HTMLElement {
     this._ro?.disconnect();
     this._staccaChiusuraEsterna();
     const lettura = this._stato("lettura");
+    const configurata = (this._hass.config?.components || []).includes(DOMAIN);
     const firma = [
       "vuota",
       chiave,
+      configurata,
       lingua(this._hass),
       this._hass.locale?.number_format || "",
       this._hass.themes?.theme || "",
@@ -736,10 +751,11 @@ class AcegasLuceCard extends HTMLElement {
     let sottotitolo = t("waiting");
     let contenuto;
     if (chiave === "not_configured") {
-      sottotitolo = t("not_configured_sub");
+      // Set up without an electricity contract: say that, not "not configured".
+      sottotitolo = configurata ? t("no_contract_sub") : t("not_configured_sub");
       contenuto = `<ha-alert alert-type="info" title="${escapeHtml(t("not_configured_title"))}">
         ${escapeHtml(t("not_configured_text"))}${admin ? "" : ` ${escapeHtml(t("ask_admin"))}`}
-        ${admin ? `<ha-button slot="action" data-percorso="${escapeHtml(URL_CONFIGURA)}">${escapeHtml(t("configure"))}</ha-button>` : ""}
+        ${admin ? `<ha-button slot="action" data-percorso="${escapeHtml(configurata ? URL_INTEGRAZIONE : URL_CONFIGURA)}">${escapeHtml(t(configurata ? "manage" : "configure"))}</ha-button>` : ""}
       </ha-alert>`;
     } else if (chiave === "device_not_found") {
       accent = "var(--warning-color, #ffa600)";
@@ -813,6 +829,7 @@ class AcegasLuceCard extends HTMLElement {
               <ha-icon-button data-azione="next"><ha-icon icon="mdi:chevron-right"></ha-icon></ha-icon-button>
             </div>
             <div class="fasce" hidden>
+              <div class="fasce-title"></div>
               <div class="split" role="img"></div>
               <div class="legend"></div>
             </div>
@@ -1121,6 +1138,10 @@ const STILE = `
 
   /* F1 / F2 / F3 split bar and legend */
   .fasce { display: flex; flex-direction: column; gap: 8px; }
+  .fasce-title {
+    font-size: var(--ha-font-size-s, 12px); line-height: 16px; letter-spacing: 0.4px;
+    color: var(--secondary-text-color);
+  }
   .split {
     display: flex; gap: 2px; height: 8px; overflow: hidden; flex: none;
     border-radius: var(--ha-border-radius-pill, 9999px);
@@ -1185,9 +1206,11 @@ const STILE = `
   .tip-value { font-weight: var(--ha-font-weight-medium, 500); margin-inline-start: 16px; font-variant-numeric: tabular-nums; }
   .tip-total { border-top: 1px solid var(--divider-color); margin-top: 4px; padding-top: 4px; }
 
+  @container (max-width: 380px) {
+    .stats.tre { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   @container (max-width: 280px) {
     .facts { grid-template-columns: 1fr; }
-    .stats.tre { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   @media (prefers-reduced-motion: reduce) {

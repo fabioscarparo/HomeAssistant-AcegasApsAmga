@@ -14,9 +14,11 @@
 
 const CARD_TYPE = "acegasapsamga-rifiuti-card";
 const EDITOR_TYPE = "acegasapsamga-rifiuti-card-editor";
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 const DOMAIN = "acegasapsamga";
 const URL_CONFIGURA = "/_my_redirect/config_flow_start?domain=acegasapsamga";
+// With the integration already set up, contracts are chosen from its page.
+const URL_INTEGRAZIONE = "/config/integrations/integration/acegasapsamga";
 const STATI_DA_PAGARE = ["unpaid", "expired", "paid_partial"];
 const ORDINE_FRAZIONI = ["RSU", "CARTA", "PLASTICA", "VETRO", "ORGANICO"];
 
@@ -25,11 +27,12 @@ const STRINGS = {
     card_name: "AcegasApsAmga · Rifiuti (TARI)",
     card_description: "Svuotamenti annui per frazione, grafico mensile impilato, confronto anno precedente e dotazioni.",
     waste: "Rifiuti · TARI",
-    contract_line: "Utenza {code} · {active} dotazioni attive",
+    contract_line: "Utenza {code}",
     disposals_unit: "svuotamenti quest'anno",
     volume_line: "{volume} L conferiti",
-    vs_prev_label: "Rispetto all'anno scorso",
-    prev_detail: "{count} svuot. · {volume} L",
+    same_period_label: "Stesso periodo {year}",
+    prev_year_label: "Nel {year}",
+    prev_detail: "{count} svuotamenti · {volume} L",
     prev_count_only: "{count} svuotamenti",
     equipment_label: "Dotazioni",
     equipment_active: "{active} attive",
@@ -49,11 +52,13 @@ const STRINGS = {
     not_configured_title: "Nessuna utenza TARI / Rifiuti",
     not_configured_text: "Configura un contratto rifiuti nell'integrazione AcegasApsAmga per usare questa card.",
     not_configured_sub: "Non configurata",
+    no_contract_sub: "Contratto non attivo",
     device_not_found_title: "Utenza rifiuti non trovata",
     device_not_found_text: "L'utenza rifiuti configurata non è più disponibile. Scegline un'altra dalle impostazioni.",
     device_not_found_sub: "Dispositivo non disponibile",
     ask_admin: "Chiedi a un amministratore di farlo.",
     configure: "Configura",
+    manage: "Gestisci",
     type_RSU: "Indifferenziato",
     type_CARTA: "Carta",
     type_VETRO: "Vetro",
@@ -68,11 +73,12 @@ const STRINGS = {
     card_name: "AcegasApsAmga · Waste (TARI)",
     card_description: "Annual waste disposals by fraction, stacked monthly chart, year-over-year and equipment.",
     waste: "Waste · TARI",
-    contract_line: "Contract {code} · {active} active items",
+    contract_line: "Contract {code}",
     disposals_unit: "disposals this year",
     volume_line: "{volume} L conferred",
-    vs_prev_label: "Vs last year",
-    prev_detail: "{count} disp. · {volume} L",
+    same_period_label: "Same period {year}",
+    prev_year_label: "In {year}",
+    prev_detail: "{count} disposals · {volume} L",
     prev_count_only: "{count} disposals",
     equipment_label: "Equipment",
     equipment_active: "{active} active",
@@ -92,11 +98,13 @@ const STRINGS = {
     not_configured_title: "No waste / TARI contract",
     not_configured_text: "Configure an environment / TARI contract in AcegasApsAmga to use this card.",
     not_configured_sub: "Not configured",
+    no_contract_sub: "No active contract",
     device_not_found_title: "Waste contract not found",
     device_not_found_text: "The configured waste contract is no longer available. Pick another in card settings.",
     device_not_found_sub: "Device unavailable",
     ask_admin: "Ask an administrator to do it.",
     configure: "Set up",
+    manage: "Manage",
     type_RSU: "Residual",
     type_CARTA: "Paper",
     type_VETRO: "Glass",
@@ -124,8 +132,12 @@ const lingua = (hass) => ((hass?.locale?.language || hass?.language || "en").toL
 const traduci = (hass, key, vars = {}) => {
   let s = STRINGS[lingua(hass)][key] ?? STRINGS.en[key] ?? key;
   for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, () => String(v));
-  return s;
+  return lingua(hass) === "it" ? elidi(s) : s;
 };
+
+// "il 1 dic" / "il 8 dic" becomes "l'1 dic" / "l'8 dic": Italian elides the article before 1, 8 and 11.
+const ELISIONI = { il: "l'", Il: "L'", al: "all'", Al: "All'", dal: "dall'", Dal: "Dall'" };
+const elidi = (s) => s.replace(/\b(il|Il|al|Al|dal|Dal) (?=(?:1|8|11)(?!\d))/g, (_, articolo) => ELISIONI[articolo]);
 
 const naviga = (percorso) => {
   history.pushState(null, "", percorso);
@@ -367,6 +379,11 @@ class AcegasRifiutiCard extends HTMLElement {
     return dateFormatter(lang, { day: "numeric", month: "short" }).format(new Date(Date.UTC(parti[0], parti[1] - 1, parti[2])));
   }
 
+  _annoCorrente() {
+    const tz = this._hass?.config?.time_zone;
+    return Number(new Intl.DateTimeFormat("en-US", tz ? { timeZone: tz, year: "numeric" } : { year: "numeric" }).format(new Date()));
+  }
+
   _nomeTipo(tipo) {
     return STRINGS[lingua(this._hass)][`type_${tipo}`] || tipo;
   }
@@ -408,10 +425,8 @@ class AcegasRifiutiCard extends HTMLElement {
 
     const svu = this._stato("svuotamenti_rifiuti");
     const vol = this._stato("volume_rifiuti");
-    const dot = this._stato("dotazioni_rifiuti");
-    const attive = valido(dot) ? Number(dot.state) : 0;
     const codice = svu?.attributes?.pod || this._utenza.nome;
-    $(".secondary").textContent = t("contract_line", { code: codice, active: this._numero(attive, 0) });
+    $(".secondary").textContent = t("contract_line", { code: codice });
 
     const conteggio = valido(svu) ? Number(svu.state) : 0;
     const litri = valido(vol) ? Number(vol.state) : 0;
@@ -446,25 +461,32 @@ class AcegasRifiutiCard extends HTMLElement {
     const vol = this._stato("volume_rifiuti");
     const dot = this._stato("dotazioni_rifiuti");
 
-    // Fact 1: Year-over-year comparison
+    // Fact 1: last year. This year runs to today, so it is compared with last
+    // year up to the same day; without that figure, last year's totals are shown
+    // as they are, with no percentage.
     const fattoPrev = $('[data-fatto="prev"]');
-    const precVol = vol?.attributes?.anno_precedente;
-    const precCont = svu?.attributes?.anno_precedente;
-    const haPrev = (typeof precVol === "number" && precVol > 0) || (typeof precCont === "number" && precCont > 0);
-    fattoPrev.hidden = !haPrev;
-    if (haPrev) {
-      fattoPrev.querySelector(".fact-label").textContent = t("vs_prev_label");
-      if (typeof precVol === "number" && precVol > 0) {
-        const diff = Math.round(((litri - precVol) / precVol) * 100);
-        fattoPrev.querySelector(".fact-value").textContent = diff > 0 ? `+${diff}%` : `${diff}%`;
-        fattoPrev.querySelector(".fact-sub span").textContent = typeof precCont === "number"
-          ? t("prev_detail", { count: this._numero(precCont, 0), volume: this._numero(precVol, 0) })
-          : `${this._numero(precVol, 0)} L`;
-      } else {
-        const diff = conteggio - precCont;
-        fattoPrev.querySelector(".fact-value").textContent = diff > 0 ? `+${diff}` : `${diff}`;
-        fattoPrev.querySelector(".fact-sub span").textContent = t("prev_count_only", { count: this._numero(precCont, 0) });
-      }
+    const numero = (v) => (typeof v === "number" && v > 0 ? v : null);
+    const annoPrima = this._annoCorrente() - 1;
+    const stessoVol = numero(vol?.attributes?.anno_precedente_ad_oggi);
+    const stessoCont = numero(svu?.attributes?.anno_precedente_ad_oggi);
+    const totVol = numero(vol?.attributes?.anno_precedente);
+    const totCont = numero(svu?.attributes?.anno_precedente);
+    const valore = fattoPrev.querySelector(".fact-value");
+    const sotto = fattoPrev.querySelector(".fact-sub span");
+    fattoPrev.hidden = !(stessoVol || stessoCont || totVol || totCont);
+    if (stessoVol || stessoCont) {
+      fattoPrev.querySelector(".fact-label").textContent = t("same_period_label", { year: annoPrima });
+      const segno = (d) => (d > 0 ? `+${d}` : `${d}`);
+      valore.textContent = stessoVol
+        ? `${segno(Math.round(((litri - stessoVol) / stessoVol) * 100))}%`
+        : segno(conteggio - stessoCont);
+      sotto.textContent = stessoVol && stessoCont
+        ? t("prev_detail", { count: this._numero(stessoCont, 0), volume: this._numero(stessoVol, 0) })
+        : stessoCont ? t("prev_count_only", { count: this._numero(stessoCont, 0) }) : `${this._numero(stessoVol, 0)} L`;
+    } else if (totVol || totCont) {
+      fattoPrev.querySelector(".fact-label").textContent = t("prev_year_label", { year: annoPrima });
+      valore.textContent = totCont ? t("prev_count_only", { count: this._numero(totCont, 0) }) : `${this._numero(totVol, 0)} L`;
+      sotto.textContent = totCont && totVol ? `${this._numero(totVol, 0)} L` : "";
     }
 
     // Fact 2: Active equipment summary (tapping opens dotazioni_rifiuti more-info with full details)
@@ -760,7 +782,8 @@ class AcegasRifiutiCard extends HTMLElement {
   _renderVuota(chiave) {
     this._ro?.disconnect();
     this._staccaChiusuraEsterna();
-    const firma = `vuota-${chiave}-${lingua(this._hass)}-${this._hass.user?.is_admin}-${this._config.name || ""}-${this._config.icon || ""}`;
+    const configurata = (this._hass.config?.components || []).includes(DOMAIN);
+    const firma = `vuota-${chiave}-${configurata}-${lingua(this._hass)}-${this._hass.user?.is_admin}-${this._config.name || ""}-${this._config.icon || ""}`;
     if (this._modo === firma) return;
     this._modo = firma;
     const t = (k) => traduci(this._hass, k);
@@ -770,11 +793,14 @@ class AcegasRifiutiCard extends HTMLElement {
     const accent = chiave === "device_not_found"
       ? "var(--warning-color, #ffa600)"
       : "var(--state-inactive-color, var(--disabled-text-color, #9e9e9e))";
-    const sottotitolo = chiave === "device_not_found" ? t("device_not_found_sub") : t("not_configured_sub");
+    // Set up without a waste contract: say that, not "not configured".
+    const sottotitolo = chiave === "device_not_found"
+      ? t("device_not_found_sub")
+      : configurata ? t("no_contract_sub") : t("not_configured_sub");
     const contenuto = chiave === "not_configured"
       ? `<ha-alert alert-type="info" title="${escapeHtml(t("not_configured_title"))}">
           ${escapeHtml(t("not_configured_text"))}${admin ? "" : ` ${escapeHtml(t("ask_admin"))}`}
-          ${admin ? `<ha-button slot="action" data-percorso="${escapeHtml(URL_CONFIGURA)}">${escapeHtml(t("configure"))}</ha-button>` : ""}
+          ${admin ? `<ha-button slot="action" data-percorso="${escapeHtml(configurata ? URL_INTEGRAZIONE : URL_CONFIGURA)}">${escapeHtml(t(configurata ? "manage" : "configure"))}</ha-button>` : ""}
         </ha-alert>`
       : `<ha-alert alert-type="warning" title="${escapeHtml(t("device_not_found_title"))}">${escapeHtml(t("device_not_found_text"))}</ha-alert>`;
     this.shadowRoot.innerHTML = `<style>${STILE}</style>
@@ -940,10 +966,15 @@ const STILE = `
   .legend-item {
     min-width: 0; min-height: 40px; padding: 4px 6px; margin: -2px -6px; width: calc(100% + 12px);
     cursor: pointer; outline: none; border-radius: var(--ha-border-radius-md, 8px);
-    transition: opacity 160ms ease, background-color 160ms ease;
+    transition: opacity 160ms ease;
   }
-  .legend-item:hover { background: color-mix(in srgb, var(--primary-text-color) 6%, transparent); }
-  .legend-item.active { background: color-mix(in srgb, var(--primary-text-color) 10%, transparent); }
+  .legend-item, .adv-pill { position: relative; isolation: isolate; }
+  .legend-item::before, .adv-pill::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+    background: var(--primary-text-color); opacity: 0; transition: opacity 160ms ease;
+  }
+  .legend-item:hover::before { opacity: 0.06; }
+  .legend-item.active::before { opacity: 0.1; }
   .legend-item.dim { opacity: 0.42; }
   .legend-name {
     display: flex; align-items: center; gap: 6px; font-size: var(--ha-font-size-s, 12px);
@@ -984,9 +1015,9 @@ const STILE = `
   .adv-pill {
     font-size: var(--ha-font-size-s, 12px); padding: 4px 10px;
     border-radius: var(--ha-border-radius-pill, 9999px);
-    background: color-mix(in srgb, var(--acegas-accent) 12%, transparent);
     color: var(--primary-text-color);
   }
+  .adv-pill::before { background: var(--acegas-accent); opacity: 0.12; }
 
   .tooltip {
     position: absolute; z-index: 1; pointer-events: none; white-space: nowrap;
@@ -1002,6 +1033,9 @@ const STILE = `
   .tip-value { font-weight: var(--ha-font-weight-medium, 500); margin-inline-start: 16px; font-variant-numeric: tabular-nums; }
   .tip-total { border-top: 1px solid var(--divider-color); margin-top: 4px; padding-top: 4px; }
 
+  @container (max-width: 380px) {
+    .facts.tre { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   @container (max-width: 300px) {
     .facts, .facts.tre { grid-template-columns: 1fr; }
     .legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }

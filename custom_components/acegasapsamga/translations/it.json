@@ -226,6 +226,9 @@
           "anno_precedente": {
             "name": "Svuotamenti anno precedente"
           },
+          "anno_precedente_ad_oggi": {
+            "name": "Svuotamenti anno precedente fino a oggi"
+          },
           "per_tipo": {
             "name": "Per frazione"
           },
@@ -245,6 +248,9 @@
         "state_attributes": {
           "anno_precedente": {
             "name": "Volume anno precedente"
+          },
+          "anno_precedente_ad_oggi": {
+            "name": "Volume anno precedente fino a oggi"
           },
           "per_tipo": {
             "name": "Per frazione"

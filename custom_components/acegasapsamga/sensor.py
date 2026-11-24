@@ -397,10 +397,12 @@ class SvuotamentiRifiutiSensor(_SensoreRifiuti):
         rifiuti = self._rifiuti
         if rifiuti is None:
             return {"pod": self.coordinator.codice(self._contratto), "servizio": self._servizio}
+        ad_oggi = rifiuti.anno_precedente_ad_oggi(dt_util.now(lt.FUSO).date())
         return {
             "pod": self.coordinator.codice(self._contratto),
             "servizio": self._servizio,
             "anno_precedente": len(rifiuti.svuotamenti_anno_precedente),
+            "anno_precedente_ad_oggi": ad_oggi[0] if ad_oggi else None,
             "per_tipo": rifiuti.per_tipo(),
             "per_mese": rifiuti.per_mese(),
             "vantaggi": rifiuti.vantaggi,
@@ -429,8 +431,10 @@ class VolumeRifiutiSensor(_SensoreRifiuti):
         rifiuti = self._rifiuti
         if rifiuti is None:
             return {}
+        ad_oggi = rifiuti.anno_precedente_ad_oggi(dt_util.now(lt.FUSO).date())
         return {
             "anno_precedente": rifiuti.volume_totale_precedente,
+            "anno_precedente_ad_oggi": ad_oggi[1] if ad_oggi else None,
             "per_tipo": rifiuti.per_tipo(),
         }
 

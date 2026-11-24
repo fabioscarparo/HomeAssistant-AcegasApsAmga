@@ -16,13 +16,12 @@
 
 const CARD_TYPE = "acegasapsamga-bollette-card";
 const EDITOR_TYPE = "acegasapsamga-bollette-card-editor";
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 const DOMAIN = "acegasapsamga";
 const DEFAULT_MAX_BILLS = 8;
 const URL_CONFIGURA = "/_my_redirect/config_flow_start?domain=acegasapsamga";
 const STATI_DA_PAGARE = ["unpaid", "expired", "paid_partial"];
 const ORDINE_SERVIZI = ["WATER", "GAS", "ELECTRIC", "HEATING", "ENVIRONMENT"];
-const ORDINE_CATEGORIE = [...ORDINE_SERVIZI, "COMBINED", "OTHER"];
 
 const STRINGS = {
   it: {
@@ -39,9 +38,6 @@ const STRINGS = {
     next_due: "Entro il {date}",
     direct_debit_on: "Addebito il {date}",
     overdue_since: "Scaduta il {date}",
-    paperless: "Bolletta Web",
-    direct_debit: "Domiciliata",
-    water_alerts: "Avvisi idrici attivi",
     all_services: "Tutte",
     total_year: "Totale {year}",
     total_service_year: "{service} {year}",
@@ -66,6 +62,7 @@ const STRINGS = {
     not_to_pay_label: "Non da pagare",
     share_of_bill: "Quota su plico {total}",
     show_more: "Mostra altre {count}",
+    show_more_one: "Mostra un'altra",
     show_less: "Mostra meno",
     pwd_warning: "Password portale in scadenza tra {days} giorni",
     pwd_expired: "Password portale scaduta o da rinnovare",
@@ -87,7 +84,6 @@ const STRINGS = {
     svc_ELECTRIC: "Luce",
     svc_HEATING: "Teleriscaldamento",
     svc_ENVIRONMENT: "TARI",
-    svc_COMBINED: "Plichi combinati",
     svc_OTHER: "Altre",
     ed_device: "Contratto (opzionale, vuoto = tutti)",
     ed_name: "Nome",
@@ -109,9 +105,6 @@ const STRINGS = {
     next_due: "Due {date}",
     direct_debit_on: "Direct debit {date}",
     overdue_since: "Overdue since {date}",
-    paperless: "Paperless",
-    direct_debit: "Direct debit",
-    water_alerts: "Water alerts active",
     all_services: "All",
     total_year: "{year} total",
     total_service_year: "{service} {year}",
@@ -136,6 +129,7 @@ const STRINGS = {
     not_to_pay_label: "Not to pay",
     share_of_bill: "Share of {total} bill",
     show_more: "Show {count} more",
+    show_more_one: "Show 1 more",
     show_less: "Show less",
     pwd_warning: "Portal password expires in {days} days",
     pwd_expired: "Portal password expired or renewal required",
@@ -157,7 +151,6 @@ const STRINGS = {
     svc_ELECTRIC: "Electricity",
     svc_HEATING: "District heating",
     svc_ENVIRONMENT: "Waste",
-    svc_COMBINED: "Combined bills",
     svc_OTHER: "Other",
     ed_device: "Contract (optional, empty = all)",
     ed_name: "Name",
@@ -182,8 +175,12 @@ const lingua = (hass) => ((hass?.locale?.language || hass?.language || "en").toL
 const traduci = (hass, key, vars = {}) => {
   let s = STRINGS[lingua(hass)][key] ?? STRINGS.en[key] ?? key;
   for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, () => String(v));
-  return s;
+  return lingua(hass) === "it" ? elidi(s) : s;
 };
+
+// "il 1 dic" / "il 8 dic" becomes "l'1 dic" / "l'8 dic": Italian elides the article before 1, 8 and 11.
+const ELISIONI = { il: "l'", Il: "L'", al: "all'", Al: "All'", dal: "dall'", Dal: "Dall'" };
+const elidi = (s) => s.replace(/\b(il|Il|al|Al|dal|Dal) (?=(?:1|8|11)(?!\d))/g, (_, articolo) => ELISIONI[articolo]);
 
 const naviga = (percorso) => {
   history.pushState(null, "", percorso);
@@ -331,6 +328,11 @@ class AcegasBolletteCard extends HTMLElement {
     return lista;
   }
 
+  // How many utilities the card covers: with one, rows need not name it.
+  get _serviziCarta() {
+    return new Set(this._contrattiAttivi.map((c) => this._servizioContratto(c)).filter(Boolean)).size;
+  }
+
   get _modalitaGruppo() {
     return this._config.group_by || "service";
   }
@@ -392,15 +394,17 @@ class AcegasBolletteCard extends HTMLElement {
     );
   }
 
-  // Classifies a bill into its utility service, COMBINED for multi-service PLICO bills, or OTHER.
+  // The utility of a bill; a bill that groups several is filed under all of them
+  // together ("WATER+GAS"), OTHER when nothing says.
   _categoriaBolletta(b) {
     const mappa = b.importi_servizi;
     if (mappa && typeof mappa === "object") {
-      const attivi = Object.entries(mappa)
-        .filter(([, v]) => Math.abs(Number(v) || 0) > 0)
-        .map(([k]) => k);
+      const attivi = ordinaChiavi(
+        Object.entries(mappa).filter(([, v]) => Math.abs(Number(v) || 0) > 0).map(([k]) => k),
+        ORDINE_SERVIZI
+      );
       if (attivi.length === 1) return attivi[0];
-      if (attivi.length > 1) return "COMBINED";
+      if (attivi.length > 1) return attivi.join("+");
     }
     return b._servizio || "OTHER";
   }
@@ -460,6 +464,15 @@ class AcegasBolletteCard extends HTMLElement {
   }
 
   _nomeServizio(codice) {
+    if (String(codice).includes("+")) {
+      // "Acqua e gas", "Water, gas and electricity": acronyms like TARI keep their case.
+      const nomi = codice.split("+").map((k, i) => {
+        const nome = this._nomeServizio(k);
+        return i && nome !== nome.toUpperCase() ? nome.toLowerCase() : nome;
+      });
+      const e = lingua(this._hass) === "it" ? " e " : " and ";
+      return `${nomi.slice(0, -1).join(", ")}${e}${nomi[nomi.length - 1]}`;
+    }
     return STRINGS[lingua(this._hass)][`svc_${codice}`] || codice;
   }
 
@@ -495,13 +508,11 @@ class AcegasBolletteCard extends HTMLElement {
     $(".primary").textContent = this._config.name || (this._config.device_id ? contratti[0].nome : t("title"));
 
     const ultima = bollette[0];
-    const badges = [];
-    if (ultima?.domiciliata) badges.push(t("direct_debit"));
-    if (ultima?.bolletta_web) badges.push(t("paperless"));
-    const notifStato = this._mappa?.account?.notifiche ? this._hass.states?.[this._mappa.account.notifiche] : null;
-    if (notifStato?.attributes?.avvisi_idrici_attivi === true) badges.push(t("water_alerts"));
-    $(".secondary").textContent = badges.join(" · ")
-      || (bollette.length === 1 ? t("bill_count_one") : t("bills_count", { count: String(bollette.length) }));
+    // Which utilities the card covers; for a single contract, how many bills it has.
+    const servizi = ordinaChiavi(contratti.map((c) => this._servizioContratto(c)).filter(Boolean), ORDINE_SERVIZI);
+    $(".secondary").textContent = !this._config.device_id && servizi.length
+      ? servizi.map((k) => this._nomeServizio(k)).join(" · ")
+      : bollette.length === 1 ? t("bill_count_one") : t("bills_count", { count: String(bollette.length) });
 
     // Balance hero
     const hero = $(".hero");
@@ -663,14 +674,15 @@ class AcegasBolletteCard extends HTMLElement {
 
     if (filtro && b.importi_servizi && Object.keys(b.importi_servizi).length > 1) {
       dettaglio.push(t("share_of_bill", { total: this._euro(b.importo) }));
-    } else if (mostraServizi && b.importi_servizi && Object.keys(b.importi_servizi).length) {
+    } else if (mostraServizi && b.importi_servizi && Object.keys(b.importi_servizi).length > 1) {
       dettaglio.push(
         ordinaChiavi(Object.keys(b.importi_servizi), ORDINE_SERVIZI)
           .map((k) => `${this._nomeServizio(k)} ${this._euro(b.importi_servizi[k])}`)
           .join(" · ")
       );
-    } else if (mostraServizi && b._servizio) {
-      dettaglio.push(this._nomeServizio(b._servizio));
+    } else if (mostraServizi && this._serviziCarta > 1) {
+      const solo = Object.keys(b.importi_servizi || {})[0] || b._servizio;
+      if (solo) dettaglio.push(this._nomeServizio(solo));
     }
 
     const valoreBase = filtro && b.importi_servizi?.[filtro] !== undefined
@@ -737,9 +749,7 @@ class AcegasBolletteCard extends HTMLElement {
       : t("total_year", { year: String(this._anno) });
     $('[data-stat="totale"] .stat-value').textContent = filtrate.length ? this._euro(totaleVisibile) : "-";
     $('[data-stat="conteggio"] .stat-label').textContent = t("bills_year_label", { year: String(this._anno) });
-    $('[data-stat="conteggio"] .stat-value').textContent = filtrate.length === 1
-      ? t("bill_count_one")
-      : t("bills_count", { count: String(filtrate.length) });
+    $('[data-stat="conteggio"] .stat-value').textContent = String(filtrate.length);
 
     if (!filtrate.length) {
       host.innerHTML = `<div class="empty-year">${escapeHtml(
@@ -763,7 +773,14 @@ class AcegasBolletteCard extends HTMLElement {
         if (!mappa.has(cat)) mappa.set(cat, []);
         mappa.get(cat).push(b);
       }
-      const gruppi = ordinaChiavi([...mappa.keys()], ORDINE_CATEGORIE).map((cat) => {
+      // Single utilities first, then bills that group several, then the rest.
+      const chiavi = [...mappa.keys()];
+      const ordine = [
+        ...ordinaChiavi(chiavi.filter((k) => !k.includes("+") && k !== "OTHER"), ORDINE_SERVIZI),
+        ...chiavi.filter((k) => k.includes("+")).sort(),
+        ...chiavi.filter((k) => k === "OTHER"),
+      ];
+      const gruppi = ordine.map((cat) => {
         const lista = mappa.get(cat);
         const subtot = lista
           .filter((b) => b.stato !== "reversed")
@@ -776,8 +793,9 @@ class AcegasBolletteCard extends HTMLElement {
       nascoste = filtrate.length - resi.reduce((s, g) => s + g.visibili.length, 0);
 
       host.innerHTML = resi.map((g) => {
-        const icona = ICONE_SERVIZI[g.cat] || ICONE_SERVIZI.OTHER;
-        const mostraServizi = g.cat === "COMBINED" || g.cat === "OTHER";
+        const combinata = g.cat.includes("+");
+        const icona = ICONE_SERVIZI[g.cat] || (combinata ? ICONE_SERVIZI.COMBINED : ICONE_SERVIZI.OTHER);
+        const mostraServizi = combinata || g.cat === "OTHER";
         return `<section class="cat-group">
           <div class="cat-header">
             <ha-icon class="cat-icon" icon="${icona}"></ha-icon>
@@ -808,7 +826,7 @@ class AcegasBolletteCard extends HTMLElement {
       moreBtn.setAttribute("aria-expanded", String(this._espanso));
       moreBtn.querySelector("span").textContent = this._espanso
         ? t("show_less")
-        : t("show_more", { count: String(nascoste) });
+        : nascoste === 1 ? t("show_more_one") : t("show_more", { count: String(nascoste) });
       moreBtn.querySelector("ha-icon").setAttribute("icon", this._espanso ? "mdi:chevron-up" : "mdi:chevron-down");
     }
   }
@@ -1026,21 +1044,26 @@ const STILE = `
   }
 
   /* Neutral utility filter chips */
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px 6px; }
+  .chip, .bill-row, .toggle-more, .notif-row { position: relative; isolation: isolate; }
+  .chip::before, .bill-row::before, .toggle-more::before, .notif-row::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+    background: var(--primary-text-color); opacity: 0; transition: opacity 140ms ease;
+  }
   .chip {
-    width: auto; min-height: 36px; padding: 0 12px; cursor: pointer; outline: none;
+    width: auto; min-height: 32px; padding: 0 12px; cursor: pointer; outline: none;
     display: inline-flex; align-items: center; justify-content: center;
     border-radius: var(--ha-border-radius-pill, 9999px);
-    background: color-mix(in srgb, var(--disabled-color, #bdbdbd) 20%, transparent);
     font-size: var(--ha-font-size-s, 12px); font-weight: var(--ha-font-weight-medium, 500);
-    color: var(--secondary-text-color);
-    transition: background-color 140ms ease, color 140ms ease;
+    color: var(--secondary-text-color); transition: color 140ms ease;
   }
-  .chip:hover { color: var(--primary-text-color); background: color-mix(in srgb, var(--disabled-color, #bdbdbd) 32%, transparent); }
-  .chip.active {
-    background: color-mix(in srgb, var(--primary-color, #03a9f4) 16%, transparent);
-    color: var(--primary-color, #03a9f4);
-  }
+  /* 40px to tap, 32px to see */
+  .chip::after { content: ""; position: absolute; inset: -4px 0; }
+  .chip::before { background: var(--disabled-color, #bdbdbd); opacity: 0.2; }
+  .chip:hover { color: var(--primary-text-color); }
+  .chip:hover::before { opacity: 0.32; }
+  .chip.active { color: var(--primary-color, #03a9f4); }
+  .chip.active::before { background: var(--primary-color, #03a9f4); opacity: 0.16; }
 
   /* Categorized bill sections */
   .bills-container { display: flex; flex-direction: column; gap: var(--ha-space-4, 16px); }
@@ -1069,9 +1092,8 @@ const STILE = `
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     min-height: 48px; padding: 8px 6px; margin: 0 -6px; width: calc(100% + 12px);
     cursor: pointer; outline: none; border-radius: var(--ha-border-radius-md, 8px);
-    transition: background-color 140ms ease;
   }
-  .bill-row:hover { background: color-mix(in srgb, var(--primary-text-color) 6%, transparent); }
+  .bill-row:hover::before, .notif-row:hover::before { opacity: 0.06; }
 
   .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
   .bill-date {
@@ -1098,12 +1120,11 @@ const STILE = `
     display: flex; align-items: center; justify-content: center; gap: 6px;
     min-height: 42px; padding: 0 12px; cursor: pointer; outline: none;
     border-radius: var(--ha-card-features-border-radius, var(--ha-border-radius-md, 8px));
-    background: color-mix(in srgb, var(--disabled-color, #bdbdbd) 20%, transparent);
     font-size: var(--ha-font-size-s, 12px); font-weight: var(--ha-font-weight-medium, 500);
     color: var(--primary-text-color); --mdc-icon-size: 18px;
-    transition: background-color 140ms ease;
   }
-  .toggle-more:hover { background: color-mix(in srgb, var(--disabled-color, #bdbdbd) 32%, transparent); }
+  .toggle-more::before { background: var(--disabled-color, #bdbdbd); opacity: 0.2; }
+  .toggle-more:hover::before { opacity: 0.32; }
 
   /* Quiet notifications link row */
   .notif-wrap {
@@ -1115,9 +1136,7 @@ const STILE = `
     padding: 6px; margin: 0 -6px; width: calc(100% + 12px);
     cursor: pointer; outline: none;
     border-radius: var(--ha-border-radius-md, 8px);
-    transition: background-color 140ms ease;
   }
-  .notif-row:hover { background: color-mix(in srgb, var(--primary-text-color) 6%, transparent); }
   .notif-ic { flex: none; --mdc-icon-size: 20px; color: var(--secondary-text-color); }
   .notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
   .notif-title {

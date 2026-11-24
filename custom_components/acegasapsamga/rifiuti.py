@@ -129,6 +129,15 @@ class DatiRifiuti:
             return None
         return round(sum(s.volume or 0.0 for s in self.svuotamenti_anno_precedente), 2)
 
+    def anno_precedente_ad_oggi(self, oggi: date) -> tuple[int, float] | None:
+        """Disposals and litres of last year up to the same day, to compare this
+        year with the same stretch of last year. None without last year's list."""
+        if not self.svuotamenti_anno_precedente:
+            return None
+        fino = un_anno_prima(oggi)
+        scelti = [s for s in self.svuotamenti_anno_precedente if s.giorno <= fino]
+        return len(scelti), round(sum(s.volume or 0.0 for s in scelti), 2)
+
     def per_tipo(self) -> dict[str, dict[str, Any]]:
         """Counts and total volumes grouped by waste fraction (current year)."""
         gruppi: dict[str, dict[str, Any]] = {}
@@ -200,6 +209,14 @@ class DatiRifiuti:
             volume_anno_precedente=_numero(dati.get("volume_anno_precedente")),
             vantaggi=vantaggi,
         )
+
+
+def un_anno_prima(giorno: date) -> date:
+    """The same day a year before; 29 February becomes the 28th."""
+    try:
+        return giorno.replace(year=giorno.year - 1)
+    except ValueError:
+        return giorno.replace(year=giorno.year - 1, day=28)
 
 
 def estrai_dotazioni(grezze: list[dict[str, Any]]) -> list[Dotazione]:

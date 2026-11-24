@@ -189,13 +189,14 @@ Open **Edit dashboard -> Add card** and search for **AcegasApsAmga**:
    F1/F2/F3 time-of-use split bar and stacked annual chart by band (with
    optional `show_bills: true`).
 3. **`custom:acegasapsamga-rifiuti-card`** (*Waste / TARI*): current year
-   disposals and volume vs previous year, active equipment summary, interactive
-   waste-fraction bar and stacked 12-month disposal chart, and discounts (with
-   optional `show_bills: true`).
+   disposals and volume against the same stretch of last year, active
+   equipment summary, interactive waste-fraction bar and stacked 12-month
+   disposal chart, and discounts (with optional `show_bills: true`).
 4. **`custom:acegasapsamga-bollette-card`** (*Bills & Account*): cross-contract
    bills overview (deduplicating grouped `PLICO` bills), utility filter chips,
-   bills grouped by utility service (Water, Gas, Electricity, Heating, Waste,
-   Combined bills) or sorted chronologically (`group_by`), actual payment dates,
+   bills grouped by utility service (Water, Gas, Electricity, Heating, Waste;
+   a bill covering several is listed under all of them, such as "Water and gas")
+   or sorted chronologically (`group_by`), actual payment dates,
    unread portal notifications and password expiration alerts.
 
 <details>

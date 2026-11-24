@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1
+
+- Waste card: this year is compared with last year up to the same day, not
+  with the whole of last year; without that figure it shows last year's totals
+  without a percentage. New `anno_precedente_ad_oggi` attribute on the waste
+  disposals and volume sensors.
+- Bills card: the header lists the utilities it covers instead of flags taken
+  from the latest bill only; bills covering several utilities are grouped by
+  name ("Water and gas"); rows no longer repeat a single-service amount.
+- Meter card: an electricity meter shows as electricity; an open self-reading
+  window is marked with a dot instead of light text.
+- Electricity card: the band bar has a title and softer shades.
+- Italian dates use the elided article ("l'1 dic", "l'8 dic", "all'11 nov").
+- On narrow cards, three columns become two; filter chips have a 40px touch
+  area; tints no longer need `color-mix()`, so older companion apps show them.
+- Electricity and waste cards without a matching contract link to the
+  integration page instead of starting a new setup.
+
 ## 0.4.0
 
 - Added full multi-service support for Water, Gas, Electricity (with F1/F2/F3

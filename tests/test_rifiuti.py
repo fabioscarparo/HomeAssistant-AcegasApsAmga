@@ -91,3 +91,17 @@ def test_estrai_dotazioni_svuotamenti_e_vantaggi():
     ricaricato = rf.DatiRifiuti.da_dict(dati.come_dict())
     assert ricaricato is not None
     assert ricaricato.come_dict() == dati.come_dict()
+
+
+def test_anno_precedente_fino_allo_stesso_giorno():
+    prima = [
+        rf.Svuotamento(giorno=date(2025, 3, 1), tipo_rifiuto="RSU", volume=120),
+        rf.Svuotamento(giorno=date(2025, 11, 20), tipo_rifiuto="CARTA", volume=120),
+        rf.Svuotamento(giorno=date(2025, 11, 21), tipo_rifiuto="RSU", volume=120),
+        rf.Svuotamento(giorno=date(2025, 12, 15), tipo_rifiuto="RSU", volume=None),
+    ]
+    dati = rf.DatiRifiuti(svuotamenti_anno_precedente=prima)
+    # On 20 Nov 2026 the comparison stops at 20 Nov 2025, that day included.
+    assert dati.anno_precedente_ad_oggi(date(2026, 11, 20)) == (2, 240.0)
+    assert rf.DatiRifiuti().anno_precedente_ad_oggi(date(2026, 11, 20)) is None
+    assert rf.un_anno_prima(date(2028, 2, 29)) == date(2027, 2, 28)

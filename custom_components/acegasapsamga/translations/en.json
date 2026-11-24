@@ -226,6 +226,9 @@
           "anno_precedente": {
             "name": "Previous year disposals"
           },
+          "anno_precedente_ad_oggi": {
+            "name": "Last year's disposals to date"
+          },
           "per_tipo": {
             "name": "By waste type"
           },
@@ -245,6 +248,9 @@
         "state_attributes": {
           "anno_precedente": {
             "name": "Previous year volume"
+          },
+          "anno_precedente_ad_oggi": {
+            "name": "Last year's volume to date"
           },
           "per_tipo": {
             "name": "By waste type"

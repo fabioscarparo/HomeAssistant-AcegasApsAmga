@@ -564,7 +564,10 @@ async def test_multiservizio_luce_tlr_rifiuti_e_letture_giornaliere(
     svu = _stato(hass, "svuotamenti_rifiuti", "5000000001")
     assert svu.state == "2"
     assert svu.attributes["per_tipo"]["RSU"]["svuotamenti"] == 2
+    # Last year's list is empty: no same-period figure, the card falls back to the totals.
+    assert svu.attributes["anno_precedente_ad_oggi"] is None
     assert _stato(hass, "volume_rifiuti", "5000000001").state == "240.0"
+    assert _stato(hass, "volume_rifiuti", "5000000001").attributes["anno_precedente_ad_oggi"] is None
     assert _stato(hass, "dotazioni_rifiuti", "5000000001").state == "1"
 
 

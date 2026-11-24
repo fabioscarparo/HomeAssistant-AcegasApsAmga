@@ -269,7 +269,18 @@ const perSvc = bolCard._spesaPerServizio([
 ]);
 if (perSvc.WATER !== 40 || perSvc.GAS !== 110 || perSvc.HEATING !== 70) throw new Error("bollette service split failed: " + JSON.stringify(perSvc));
 if (bolCard._categoriaBolletta({{ importi_servizi: {{ ELECTRIC: 90 }} }}) !== "ELECTRIC") throw new Error("single service category failed");
-if (bolCard._categoriaBolletta({{ importi_servizi: {{ WATER: 40, GAS: 60 }} }}) !== "COMBINED") throw new Error("combined category failed");
+// A bill that groups several utilities is filed under all of them, named after them.
+if (bolCard._categoriaBolletta({{ importi_servizi: {{ GAS: 60, WATER: 40 }} }}) !== "WATER+GAS") throw new Error("combined category failed");
+const nomeGruppoIt = bolCard._nomeServizio("WATER+GAS+ENVIRONMENT");
+if (nomeGruppoIt !== "Acqua, gas e TARI") throw new Error("Italian combined group name failed: " + nomeGruppoIt);
+bolCard._hass = {{ ...bolHass, locale: {{ language: "en" }} }};
+const nomeGruppoEn = bolCard._nomeServizio("WATER+GAS+ENVIRONMENT");
+if (nomeGruppoEn !== "Water, gas and waste") throw new Error("English combined group name failed: " + nomeGruppoEn);
+bolCard._hass = bolHass;
+if (traduci(bolHass, "direct_debit_on", {{ date: "1 dic" }}) !== "Addebito l'1 dic") throw new Error("Italian elision (1) failed");
+if (traduci(bolHass, "direct_debit_on", {{ date: "8 dic" }}) !== "Addebito l'8 dic") throw new Error("Italian elision (8) failed");
+if (traduci(bolHass, "direct_debit_on", {{ date: "11 dic" }}) !== "Addebito l'11 dic") throw new Error("Italian elision (11) failed");
+if (traduci(bolHass, "direct_debit_on", {{ date: "10 dic" }}) !== "Addebito il 10 dic") throw new Error("Italian non-elision (10) failed");
 if (bolCard._categoriaBolletta({{ _servizio: "HEATING" }}) !== "HEATING") throw new Error("fallback service category failed");
 bolCard._renderVuota("not_configured");
 if (!bolCard.shadowRoot.innerHTML.includes("Nessuna bolletta disponibile")) {{

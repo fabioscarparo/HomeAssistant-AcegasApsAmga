@@ -16,7 +16,7 @@
 
 const CARD_TYPE = "acegasapsamga-contatore-card";
 const EDITOR_TYPE = "acegasapsamga-contatore-card-editor";
-const VERSION = "0.4.0";
+const VERSION = "0.4.1";
 const DOMAIN = "acegasapsamga";
 const MAX_DECIMALI = 3;
 const DAY_MS = 24 * 3600000;
@@ -31,6 +31,7 @@ const STRINGS = {
     water: "Acqua",
     gas: "Gas",
     heating: "Teleriscaldamento",
+    electric: "Luce",
     meter_line: "Contatore {value} · letto il {date}",
     waiting: "In attesa di due letture reali",
     per_day_water: "litri al giorno",
@@ -85,6 +86,7 @@ const STRINGS = {
     water: "Water",
     gas: "Gas",
     heating: "District heating",
+    electric: "Electricity",
     meter_line: "Meter {value} · read on {date}",
     waiting: "Waiting for two real readings",
     per_day_water: "litres a day",
@@ -143,8 +145,12 @@ const lingua = (hass) => {
 const traduci = (hass, key, vars = {}) => {
   let s = STRINGS[lingua(hass)][key] ?? STRINGS.en[key] ?? key;
   for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, () => String(v));
-  return s;
+  return lingua(hass) === "it" ? elidi(s) : s;
 };
+
+// "il 1 dic" / "il 8 dic" becomes "l'1 dic" / "l'8 dic": Italian elides the article before 1, 8 and 11.
+const ELISIONI = { il: "l'", Il: "L'", al: "all'", Al: "All'", dal: "dall'", Dal: "Dall'" };
+const elidi = (s) => s.replace(/\b(il|Il|al|Al|dal|Dal) (?=(?:1|8|11)(?!\d))/g, (_, articolo) => ELISIONI[articolo]);
 
 const naviga = (percorso) => {
   history.pushState(null, "", percorso);
@@ -384,8 +390,18 @@ class AcegasContatoreCard extends HTMLElement {
     const attrs = this._stato("lettura")?.attributes || {};
     if (attrs.servizio === "HEATING") return "heating";
     if (attrs.servizio === "GAS" || attrs.device_class === "gas") return "gas";
-    if (attrs.servizio === "ELECTRIC" || attrs.device_class === "energy") return "heating";
+    if (attrs.servizio === "ELECTRIC") return "electric";
+    if (attrs.device_class === "energy") return "heating";
     return "water";
+  }
+
+  // Heating and electricity are read in kWh.
+  get _kwh() {
+    return this._tipoServizio === "heating" || this._tipoServizio === "electric";
+  }
+
+  get _iconaPredefinita() {
+    return { gas: "mdi:fire", heating: "mdi:radiator", electric: "mdi:lightning-bolt" }[this._tipoServizio] || "mdi:water";
   }
 
   get _gas() {
@@ -399,7 +415,7 @@ class AcegasContatoreCard extends HTMLElement {
   get _unitaConsumo() {
     const u = this._stato("lettura")?.attributes?.unit_of_measurement;
     if (u) return u;
-    return this._heating ? "kWh" : "m³";
+    return this._kwh ? "kWh" : "m³";
   }
 
   // Values per day in litres for water, native units for gas and heating.
@@ -550,6 +566,7 @@ class AcegasContatoreCard extends HTMLElement {
     const cs = getComputedStyle(this);
     if (this._gas) return parseColore(cs.getPropertyValue("--energy-gas-color"), [142, 2, 27]);
     if (this._heating) return parseColore(cs.getPropertyValue("--energy-heating-color"), [249, 115, 22]);
+    if (this._tipoServizio === "electric") return parseColore(cs.getPropertyValue("--energy-grid-consumption-color"), [72, 143, 194]);
     return parseColore(cs.getPropertyValue("--energy-water-color"), [0, 188, 212]);
   }
 
@@ -596,8 +613,7 @@ class AcegasContatoreCard extends HTMLElement {
   _renderIntestazione() {
     const t = (k, v) => traduci(this._hass, k, v);
     const $ = (sel) => this.shadowRoot.querySelector(sel);
-    const defaultIcon = this._gas ? "mdi:fire" : this._heating ? "mdi:radiator" : "mdi:water";
-    const icona = this._config.icon || defaultIcon;
+    const icona = this._config.icon || this._iconaPredefinita;
     if ($(".icon ha-icon").getAttribute("icon") !== icona) $(".icon ha-icon").setAttribute("icon", icona);
     $(".primary").textContent = this._config.name || t(this._tipoServizio);
     const lettura = this._stato("lettura");
@@ -615,7 +631,7 @@ class AcegasContatoreCard extends HTMLElement {
     const ultimo = periodi[periodi.length - 1];
     const prima = periodi[periodi.length - 2];
     $(".hero-value").textContent = this._giornaliero(ultimo.media);
-    $(".hero-unit").textContent = this._heating
+    $(".hero-unit").textContent = this._kwh
       ? t("per_day_heating", { unit: this._unitaConsumo })
       : t(this._gas ? "per_day_gas" : "per_day_water");
     $(".hero-sub").textContent = t("period_line", {
@@ -737,10 +753,7 @@ class AcegasContatoreCard extends HTMLElement {
     if (this._modo === firma) return;
     this._modo = firma;
     const t = (k, v) => traduci(this._hass, k, v);
-    const defaultIcon = this._contatore
-      ? (this._gas ? "mdi:fire" : this._heating ? "mdi:radiator" : "mdi:water")
-      : "mdi:water";
-    const icona = this._config.icon || defaultIcon;
+    const icona = this._config.icon || (this._contatore ? this._iconaPredefinita : "mdi:water");
     const titoloCard = this._config.name || (this._contatore ? t(this._tipoServizio) : t("water"));
     let accent = "var(--state-inactive-color, var(--disabled-text-color, #9e9e9e))";
     let sottotitolo = t("waiting");
@@ -1094,7 +1107,10 @@ const STILE = `
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .fact.scaduta .fact-label { color: var(--error-color, #db4437); }
-  .fact.aperta .fact-label, .fact.aperta .fact-value { color: var(--acegas-accent); }
+  .fact.aperta .fact-value::before {
+    content: ""; display: inline-block; width: 8px; height: 8px; margin-inline-end: 6px;
+    border-radius: 50%; background: var(--acegas-accent); vertical-align: 1px;
+  }
 
   .nav { display: flex; align-items: center; margin: -4px -12px -4px; }
   .nav ha-icon-button { --mdc-icon-button-size: 40px; color: var(--primary-text-color); }
@@ -1149,9 +1165,11 @@ const STILE = `
   .tip-name { flex: 1; }
   .tip-value { font-weight: var(--ha-font-weight-medium, 500); margin-inline-start: 16px; font-variant-numeric: tabular-nums; }
 
+  @container (max-width: 380px) {
+    .facts.tre, .stats.tre { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   @container (max-width: 300px) {
     .facts, .facts.tre { grid-template-columns: 1fr; }
-    .stats.tre { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
   @media (prefers-reduced-motion: reduce) {
