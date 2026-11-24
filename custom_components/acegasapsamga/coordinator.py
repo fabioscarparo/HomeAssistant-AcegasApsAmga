@@ -1132,13 +1132,18 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
     ) -> Path | None:
         """Where to save a bill PDF, or None if the path is not allowed.
 
-        By default media/acegasapsamga/, which Home Assistant's media browser
-        shows to signed-in users. A path of the user's own starts from the
-        media folder when relative, and must be a .pdf in a folder Home
-        Assistant allows (media, allowlist_external_dirs). www is refused:
-        everything in it is served at /local/ without signing in.
+        By default media/acegasapsamga/, inside Home Assistant's allowlisted
+        media folder (out of www, which is served at /local/ without sign-in).
+        A path of the user's own starts from the media folder when relative,
+        and must be a .pdf in a folder Home Assistant allows (media,
+        allowlist_external_dirs), never www.
         """
-        cartella_media = Path(self.hass.config.media_dirs.get("local") or self.hass.config.path("media"))
+        media_dirs = self.hass.config.media_dirs or {}
+        cartella_media = Path(
+            media_dirs.get("local")
+            or next(iter(media_dirs.values()), None)
+            or self.hass.config.path("media")
+        )
         if percorso:
             candidato = Path(percorso)
             destinazione = candidato if candidato.is_absolute() else cartella_media / candidato
@@ -1146,15 +1151,23 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
             sicuro = re.sub(r"[^A-Za-z0-9_-]", "_", numero)
             suffisso = "_dettaglio" if dettaglio else ""
             destinazione = cartella_media / DOMAIN / f"bolletta_{sicuro}{suffisso}.pdf"
-        destinazione = destinazione.resolve()
-        www = Path(self.hass.config.path("www")).resolve()
-        if (
-            destinazione.suffix.lower() != ".pdf"
-            or destinazione.is_relative_to(www)
-            or not self.hass.config.is_allowed_path(str(destinazione))
-        ):
+        try:
+            destinazione = destinazione.resolve()
+            www = Path(self.hass.config.path("www")).resolve()
+        except (OSError, RuntimeError):
             return None
-        return destinazione
+        if destinazione.suffix.lower() != ".pdf" or destinazione.is_relative_to(www):
+            return None
+        ammesso = self.hass.config.is_allowed_path(str(destinazione))
+        if not ammesso:
+            for dir_ammessa in self.hass.config.allowlist_external_dirs:
+                try:
+                    if destinazione.is_relative_to(Path(dir_ammessa).resolve()):
+                        ammesso = True
+                        break
+                except (OSError, RuntimeError):
+                    continue
+        return destinazione if ammesso else None
 
     async def async_scarica_bolletta(
         self,

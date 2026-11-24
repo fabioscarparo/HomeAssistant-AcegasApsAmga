@@ -394,7 +394,7 @@
     },
     "scarica_bolletta": {
       "name": "Scarica bolletta PDF",
-      "description": "Scarica il PDF di una bolletta (di default la più recente) nella cartella media di Home Assistant, visibile da Media agli utenti che hanno effettuato l'accesso. Solo per amministratori.",
+      "description": "Scarica il PDF di una bolletta (di default la più recente) nella cartella media di Home Assistant (fuori da www, così le bollette non sono mai pubbliche) per l'uso in notifiche, automazioni o accesso locale ai file. Solo per amministratori.",
       "fields": {
         "device_id": {
           "name": "Dispositivo",

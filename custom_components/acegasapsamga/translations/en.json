@@ -394,7 +394,7 @@
     },
     "scarica_bolletta": {
       "name": "Download bill PDF",
-      "description": "Downloads a bill PDF (latest bill by default) into Home Assistant's media folder, where signed-in users see it under Media. Administrators only.",
+      "description": "Downloads a bill PDF (latest bill by default) into Home Assistant's media folder (outside www, so bills are never served publicly) for use in notifications, automations, or local file access. Administrators only.",
       "fields": {
         "device_id": {
           "name": "Device",

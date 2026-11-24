@@ -387,7 +387,7 @@ async def test_repair_issues_password_e_condizioni(
 
 
 async def test_azioni_invia_autolettura_e_scarica_bolletta(
-    recorder_mock, hass, entry: MockConfigEntry, portale, freezer, hass_read_only_user
+    recorder_mock, hass, entry: MockConfigEntry, portale, freezer, hass_read_only_user, tmp_path
 ):
     freezer.move_to(ADESSO)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -438,6 +438,27 @@ async def test_azioni_invia_autolettura_e_scarica_bolletta(
                 DOMAIN, "scarica_bolletta", {"percorso": percorso}, blocking=True
             )
     assert not Path(www, "bolletta.pdf").exists()
+
+    # 4b. Custom media_dirs without "local" key and symlinked media folders work,
+    #     while symlinks pointing into www are still refused
+    target_nas = tmp_path / "nas_target"
+    target_nas.mkdir()
+    link_nas = tmp_path / "nas_link"
+    link_nas.symlink_to(target_nas)
+    Path(www).mkdir(exist_ok=True)
+    (target_nas / "escape").symlink_to(www)
+    hass.config.media_dirs = {"nas": str(link_nas)}
+    hass.config.allowlist_external_dirs = {www, str(link_nas)}
+    pdf_nas = await hass.services.async_call(
+        DOMAIN, "scarica_bolletta", {}, blocking=True, return_response=True
+    )
+    assert Path(pdf_nas["percorso"]) == target_nas.resolve() / "acegasapsamga" / "bolletta_0000000000000103.pdf"
+    assert Path(pdf_nas["percorso"]).read_bytes() == b"%PDF-1.4 finto"
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, "scarica_bolletta", {"percorso": "escape/leak.pdf"}, blocking=True
+        )
+    assert not Path(www, "leak.pdf").exists()
 
     # 5. The actions are for administrators: a read-only user is refused
     non_admin = Context(user_id=hass_read_only_user.id)

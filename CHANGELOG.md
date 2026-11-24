@@ -1,14 +1,23 @@
 # Changelog
 
+## 0.4.3
+
+- `scarica_bolletta` now also works with custom `media_dirs` without a `local`
+  key and with symlinked media folders (while still refusing `www` and symlinks
+  pointing into `www`).
+- Clarified action descriptions and README to note that PDFs are saved in the
+  media folder for notifications, automations and local file access (Home
+  Assistant's Media browser only lists audio, video and images).
+
 ## 0.4.2
 
 - `scarica_bolletta` saves bill PDFs in the media folder
-  (`media/acegasapsamga/`), where signed-in users open them from **Media**,
-  instead of `www/acegasapsamga/`, which Home Assistant serves at `/local/`
-  without sign-in. A custom `percorso` is relative to the media folder and must
-  be a `.pdf` in a folder Home Assistant allows (`allowlist_external_dirs`);
-  `www` is refused. If you downloaded bills with 0.4.x, delete
-  `www/acegasapsamga/`.
+  (`media/acegasapsamga/`), for use in notifications, automations or local file
+  access, instead of `www/acegasapsamga/`, which Home Assistant serves at
+  `/local/` without sign-in. A custom `percorso` is relative to the media folder
+  and must be a `.pdf` in a folder Home Assistant allows
+  (`allowlist_external_dirs`); `www` is refused. If you downloaded bills with
+  0.4.x, delete `www/acegasapsamga/`.
 - `scarica_bolletta`, `invia_autolettura` and `configura_energy_dashboard` are
   for administrators only; automations and scripts call them as before.
 - The account device is named "AcegasApsAmga account", without the account

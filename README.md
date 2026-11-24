@@ -175,7 +175,7 @@ average:
 |---|---|
 | `acegasapsamga.configura_energy_dashboard` | Adds water, gas and electricity statistics to the Energy Dashboard |
 | `acegasapsamga.invia_autolettura` | Submits a meter self-reading (`valore` for water/gas/heating/mono electricity, or `f1`/`f2`/`f3` for multi-band electricity). Handles portal codes 692 and 695 cleanly |
-| `acegasapsamga.scarica_bolletta` | Downloads a bill PDF (summary or detailed `v2`) into the media folder (default: `media/acegasapsamga/bolletta_<number>.pdf`), where signed-in users open it from **Media**. A custom `percorso` must be a `.pdf` in the media folder or in `allowlist_external_dirs`; `www` is refused, because Home Assistant serves it without sign-in |
+| `acegasapsamga.scarica_bolletta` | Downloads a bill PDF (summary or detailed `v2`) into the media folder (default: `media/acegasapsamga/bolletta_<number>.pdf`), outside `www`, for use in notifications, automations or local file access. A custom `percorso` must be a `.pdf` in the media folder or in `allowlist_external_dirs`; `www` is refused because Home Assistant serves it without sign-in |
 
 All three actions are for administrators only. Automations and scripts can call them as before.
 
