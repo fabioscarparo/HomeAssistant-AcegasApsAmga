@@ -16,7 +16,7 @@
 
 const CARD_TYPE = "acegasapsamga-contatore-card";
 const EDITOR_TYPE = "acegasapsamga-contatore-card-editor";
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 const DOMAIN = "acegasapsamga";
 const MAX_DECIMALI = 3;
 const DAY_MS = 24 * 3600000;

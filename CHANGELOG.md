@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.2
 
 - `scarica_bolletta` saves bill PDFs in the media folder
   (`media/acegasapsamga/`), where signed-in users open them from **Media**,

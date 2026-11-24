@@ -14,7 +14,7 @@
 
 const CARD_TYPE = "acegasapsamga-rifiuti-card";
 const EDITOR_TYPE = "acegasapsamga-rifiuti-card-editor";
-const VERSION = "0.4.1";
+const VERSION = "0.4.2";
 const DOMAIN = "acegasapsamga";
 const URL_CONFIGURA = "/_my_redirect/config_flow_start?domain=acegasapsamga";
 // With the integration already set up, contracts are chosen from its page.
