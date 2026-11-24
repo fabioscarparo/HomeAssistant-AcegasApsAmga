@@ -11,7 +11,8 @@ import pytest
 from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.statistics import get_last_statistics, get_metadata
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.core import Context
+from homeassistant.exceptions import ServiceValidationError, Unauthorized
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
@@ -323,7 +324,13 @@ async def test_setup_scrive_statistiche_sensori_account_e_calendario(
     assert stato.state == "unpaid"
     assert stato.attributes["stato_dettaglio"] == "Pagamento in ricezione"
 
-    # Account-level sensors
+    # Account-level sensors, on a device whose name does not show the email
+    [account] = [
+        d for d in dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
+        if (DOMAIN, f"account_{entry.entry_id}") in d.identifiers
+    ]
+    assert account.name == "AcegasApsAmga account"
+    assert entry.title not in account.name
     pwd = _stato_account(hass, entry.entry_id, "scadenza_password")
     assert pwd.state == "2027-05-12"
     assert pwd.attributes["giorni_rimanenti"] > 100
@@ -380,7 +387,7 @@ async def test_repair_issues_password_e_condizioni(
 
 
 async def test_azioni_invia_autolettura_e_scarica_bolletta(
-    recorder_mock, hass, entry: MockConfigEntry, portale, freezer
+    recorder_mock, hass, entry: MockConfigEntry, portale, freezer, hass_read_only_user
 ):
     freezer.move_to(ADESSO)
     assert await hass.config_entries.async_setup(entry.entry_id)
@@ -406,7 +413,11 @@ async def test_azioni_invia_autolettura_e_scarica_bolletta(
         await hass.services.async_call(DOMAIN, "invia_autolettura", {"valore": 35}, blocking=True)
     portale.errore_invio = None
 
-    # 3. Download latest bill PDF into HA config dir
+    # 3. Download latest bill PDF into the media folder, as Home Assistant sets it up
+    media = str(Path(hass.config.path("media")).resolve())
+    www = str(Path(hass.config.path("www")).resolve())
+    hass.config.media_dirs = {"local": media}
+    hass.config.allowlist_external_dirs = {www, media}
     pdf_res = await hass.services.async_call(
         DOMAIN,
         "scarica_bolletta",
@@ -416,17 +427,27 @@ async def test_azioni_invia_autolettura_e_scarica_bolletta(
     )
     assert pdf_res["numero"] == "0000000000000103"
     assert pdf_res["dimensione"] == len(b"%PDF-1.4 finto")
+    assert Path(pdf_res["percorso"]) == Path(media) / "acegasapsamga" / "bolletta_0000000000000103.pdf"
     assert Path(pdf_res["percorso"]).read_bytes() == b"%PDF-1.4 finto"
 
-    # 4. Path traversal and non-pdf paths are rejected
-    with pytest.raises(ServiceValidationError):
-        await hass.services.async_call(
-            DOMAIN, "scarica_bolletta", {"percorso": "../../outside.pdf"}, blocking=True
-        )
-    with pytest.raises(ServiceValidationError):
-        await hass.services.async_call(
-            DOMAIN, "scarica_bolletta", {"percorso": "www/bolletta.txt"}, blocking=True
-        )
+    # 4. Refused: outside the allowed folders, not a .pdf, and www, which is
+    #    served at /local/ without signing in even though it is allowlisted
+    for percorso in ("../../outside.pdf", "acegasapsamga/bolletta.txt", f"{www}/bolletta.pdf"):
+        with pytest.raises(ServiceValidationError):
+            await hass.services.async_call(
+                DOMAIN, "scarica_bolletta", {"percorso": percorso}, blocking=True
+            )
+    assert not Path(www, "bolletta.pdf").exists()
+
+    # 5. The actions are for administrators: a read-only user is refused
+    non_admin = Context(user_id=hass_read_only_user.id)
+    for azione, dati in (
+        ("scarica_bolletta", {}),
+        ("invia_autolettura", {"valore": 32}),
+        ("configura_energy_dashboard", {}),
+    ):
+        with pytest.raises(Unauthorized):
+            await hass.services.async_call(DOMAIN, azione, dati, blocking=True, context=non_admin)
 
 
 async def test_multiservizio_luce_tlr_rifiuti_e_letture_giornaliere(

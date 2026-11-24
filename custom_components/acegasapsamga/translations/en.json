@@ -351,7 +351,7 @@
       "message": "No bill available for this contract."
     },
     "percorso_non_valido": {
-      "message": "Invalid path ({percorso}): must be a .pdf file inside Home Assistant's config directory."
+      "message": "Invalid path ({percorso}): it must be a .pdf file in the media folder or in a folder listed in allowlist_external_dirs, outside www."
     },
     "errore_portale": {
       "message": "Error from the AcegasApsAmga portal: {messaggio}"
@@ -360,11 +360,11 @@
   "services": {
     "configura_energy_dashboard": {
       "name": "Configure Energy dashboard",
-      "description": "Adds water, gas and electricity consumption of every configured contract to the Energy dashboard. Existing sources are left unchanged."
+      "description": "Adds water, gas and electricity consumption of every configured contract to the Energy dashboard. Existing sources are left unchanged. Administrators only."
     },
     "invia_autolettura": {
       "name": "Submit self-reading",
-      "description": "Submits a meter self-reading (water, gas, district heating, or mono/multi-band electricity) to AcegasApsAmga Servizi Online.",
+      "description": "Submits a meter self-reading (water, gas, district heating, or mono/multi-band electricity) to AcegasApsAmga Servizi Online. Administrators only.",
       "fields": {
         "device_id": {
           "name": "Device",
@@ -394,7 +394,7 @@
     },
     "scarica_bolletta": {
       "name": "Download bill PDF",
-      "description": "Downloads a bill PDF (latest bill by default) into Home Assistant's config directory.",
+      "description": "Downloads a bill PDF (latest bill by default) into Home Assistant's media folder, where signed-in users see it under Media. Administrators only.",
       "fields": {
         "device_id": {
           "name": "Device",
@@ -414,7 +414,7 @@
         },
         "percorso": {
           "name": "Target path",
-          "description": "Destination .pdf path inside Home Assistant's config directory (default: www/acegasapsamga/bolletta_NUMBER.pdf)."
+          "description": "Path of the .pdf file, relative to the media folder unless it starts with /. Default: media/acegasapsamga/bolletta_NUMBER.pdf. The media folder and folders in allowlist_external_dirs are allowed, www is not: files there are public."
         }
       }
     }

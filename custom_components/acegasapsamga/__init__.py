@@ -10,6 +10,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -153,20 +154,26 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         )
         return risultato if call.return_response else None
 
-    hass.services.async_register(
+    # All three change something: the Energy dashboard settings, a reading sent
+    # to the utility, a file on disk. Only administrators may call them;
+    # automations and scripts run without a user and keep working.
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVIZIO_CONFIGURA_ENERGY_DASHBOARD,
         _configura_energy_dashboard,
         supports_response=SupportsResponse.OPTIONAL,
     )
-    hass.services.async_register(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVIZIO_INVIA_AUTOLETTURA,
         _invia_autolettura,
         schema=SCHEMA_INVIA_AUTOLETTURA,
         supports_response=SupportsResponse.OPTIONAL,
     )
-    hass.services.async_register(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVIZIO_SCARICA_BOLLETTA,
         _scarica_bolletta,

@@ -591,7 +591,9 @@ class _SensoreAccount(CoordinatorEntity[AcegasCoordinator], SensorEntity):
         self._attr_translation_key = self.chiave
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"account_{entry.entry_id}")},
-            name=f"{NOME_INTEGRAZIONE} ({entry.title})",
+            # Not the entry title: it is the account email, and the device name
+            # ends up in every entity name and in shared screenshots.
+            name=f"{NOME_INTEGRAZIONE} account",
             manufacturer=NOME_INTEGRAZIONE,
             model=testo(coordinator.lingua, "modello_account"),
             configuration_url=PORTALE_ORIGIN,

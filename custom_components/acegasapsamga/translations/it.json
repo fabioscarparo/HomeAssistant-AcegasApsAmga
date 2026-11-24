@@ -351,7 +351,7 @@
       "message": "Nessuna bolletta disponibile per questo contratto."
     },
     "percorso_non_valido": {
-      "message": "Percorso non valido ({percorso}): deve essere un file .pdf dentro la cartella di configurazione di Home Assistant."
+      "message": "Percorso non valido ({percorso}): deve essere un file .pdf nella cartella media o in una cartella di allowlist_external_dirs, fuori da www."
     },
     "errore_portale": {
       "message": "Errore dal portale AcegasApsAmga: {messaggio}"
@@ -360,11 +360,11 @@
   "services": {
     "configura_energy_dashboard": {
       "name": "Configura dashboard Energia",
-      "description": "Aggiunge alla dashboard Energia i consumi di acqua, gas e luce dei contratti configurati. Le sorgenti già presenti restano invariate."
+      "description": "Aggiunge alla dashboard Energia i consumi di acqua, gas e luce dei contratti configurati. Le sorgenti già presenti restano invariate. Solo per amministratori."
     },
     "invia_autolettura": {
       "name": "Invia autolettura",
-      "description": "Invia un'autolettura del contatore (acqua, gas, teleriscaldamento o luce mono/multioraria) ai Servizi Online di AcegasApsAmga.",
+      "description": "Invia un'autolettura del contatore (acqua, gas, teleriscaldamento o luce mono/multioraria) ai Servizi Online di AcegasApsAmga. Solo per amministratori.",
       "fields": {
         "device_id": {
           "name": "Dispositivo",
@@ -394,7 +394,7 @@
     },
     "scarica_bolletta": {
       "name": "Scarica bolletta PDF",
-      "description": "Scarica il PDF di una bolletta (di default la più recente) dentro la cartella di configurazione di Home Assistant.",
+      "description": "Scarica il PDF di una bolletta (di default la più recente) nella cartella media di Home Assistant, visibile da Media agli utenti che hanno effettuato l'accesso. Solo per amministratori.",
       "fields": {
         "device_id": {
           "name": "Dispositivo",
@@ -414,7 +414,7 @@
         },
         "percorso": {
           "name": "Percorso di destinazione",
-          "description": "Percorso .pdf dentro la cartella config di Home Assistant (predefinito: www/acegasapsamga/bolletta_NUMERO.pdf)."
+          "description": "Percorso del file .pdf, relativo alla cartella media se non inizia con /. Predefinito: media/acegasapsamga/bolletta_NUMERO.pdf. Ammesse la cartella media e quelle in allowlist_external_dirs, non www: lì i file sono pubblici."
         }
       }
     }

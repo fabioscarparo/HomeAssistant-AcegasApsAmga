@@ -373,7 +373,8 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
         super().__init__(
             hass,
             _LOGGER,
-            name=f"{DOMAIN} ({entry.title})",
+            # The entry id, not the title: the title is the account email, and logs get shared.
+            name=f"{DOMAIN} ({entry.entry_id})",
             update_interval=INTERVALLO_NORMALE,
             config_entry=entry,
         )
@@ -1126,6 +1127,35 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
             "misure": payload["measurements"],
         }
 
+    def _destinazione_pdf(
+        self, numero: str, dettaglio: bool, percorso: str | None
+    ) -> Path | None:
+        """Where to save a bill PDF, or None if the path is not allowed.
+
+        By default media/acegasapsamga/, which Home Assistant's media browser
+        shows to signed-in users. A path of the user's own starts from the
+        media folder when relative, and must be a .pdf in a folder Home
+        Assistant allows (media, allowlist_external_dirs). www is refused:
+        everything in it is served at /local/ without signing in.
+        """
+        cartella_media = Path(self.hass.config.media_dirs.get("local") or self.hass.config.path("media"))
+        if percorso:
+            candidato = Path(percorso)
+            destinazione = candidato if candidato.is_absolute() else cartella_media / candidato
+        else:
+            sicuro = re.sub(r"[^A-Za-z0-9_-]", "_", numero)
+            suffisso = "_dettaglio" if dettaglio else ""
+            destinazione = cartella_media / DOMAIN / f"bolletta_{sicuro}{suffisso}.pdf"
+        destinazione = destinazione.resolve()
+        www = Path(self.hass.config.path("www")).resolve()
+        if (
+            destinazione.suffix.lower() != ".pdf"
+            or destinazione.is_relative_to(www)
+            or not self.hass.config.is_allowed_path(str(destinazione))
+        ):
+            return None
+        return destinazione
+
     async def async_scarica_bolletta(
         self,
         numero_contratto: str,
@@ -1134,7 +1164,8 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
         dettaglio: bool = False,
         percorso: str | None = None,
     ) -> dict[str, Any]:
-        """Download a bill PDF into a safe path inside Home Assistant's config directory."""
+        """Download a bill PDF into the media folder, or another folder Home
+        Assistant lets integrations write to, never www."""
         contratto = self.trova_contratto(numero_contratto)
         if contratto is None:
             raise ServiceValidationError(
@@ -1152,24 +1183,15 @@ class AcegasCoordinator(DataUpdateCoordinator[dict[str, DatiContratto]]):
                 )
             numero = dati.bollette[0].numero
 
-        base_dir = Path(self.hass.config.config_dir).resolve()
-        if percorso:
-            candidato = Path(percorso)
-            destinazione = (
-                candidato if candidato.is_absolute() else base_dir / candidato
-            ).resolve()
-        else:
-            sicuro = re.sub(r"[^A-Za-z0-9_-]", "_", numero)
-            suffisso = "_dettaglio" if dettaglio else ""
-            destinazione = (
-                base_dir / "www" / DOMAIN / f"bolletta_{sicuro}{suffisso}.pdf"
-            ).resolve()
-
-        if not destinazione.is_relative_to(base_dir) or destinazione.suffix.lower() != ".pdf":
+        # Resolving paths touches the disk: done in the executor.
+        destinazione = await self.hass.async_add_executor_job(
+            self._destinazione_pdf, numero, dettaglio, percorso
+        )
+        if destinazione is None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="percorso_non_valido",
-                translation_placeholders={"percorso": str(percorso or destinazione)},
+                translation_placeholders={"percorso": str(percorso or numero)},
             )
 
         await self._async_assicura_token()
