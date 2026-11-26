@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/fabioscarparo/HomeAssistant-AcegasApsAmga/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/fabioscarparo/HomeAssistant-AcegasApsAmga?label=Release&color=5CC300"></a>
-  <a href="https://hacs.xyz/"><img alt="HACS Custom" src="https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistantcommunitystore&logoColor=fff"></a>
+  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=fabioscarparo&repository=HomeAssistant-AcegasApsAmga&category=integration"><img alt="HACS Default" src="https://img.shields.io/badge/HACS-Default-41BDF5?logo=homeassistantcommunitystore&logoColor=fff"></a>
   <a href="https://www.home-assistant.io/"><img alt="Home Assistant 2025.10+" src="https://img.shields.io/badge/Home_Assistant-2025.10%2B-18BCF2?logo=homeassistant&logoColor=fff"></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/License-MIT-333"></a>
 </p>
@@ -67,16 +67,19 @@ account alerts.
 - An account on the [AcegasApsAmga Servizi Online](https://servizionline.acegasapsamga.it/)
   with at least one supported contract
 
-### Install with HACS
+### Install with HACS (recommended)
 
-The integration is not in the default HACS store yet: add it as a custom
-repository.
+The integration is in HACS's default store, with no custom repository to add:
 
-1. Open **HACS**, then **⋮ -> Custom repositories**.
-2. Add `https://github.com/fabioscarparo/HomeAssistant-AcegasApsAmga` with
-   type **Integration**.
-3. Search for **AcegasApsAmga**, open it and select **Download**.
-4. Restart Home Assistant.
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=fabioscarparo&repository=HomeAssistant-AcegasApsAmga&category=integration)
+
+1. Open the repository in HACS with the button above, or search HACS for
+   **AcegasApsAmga**.
+2. Select **Download** and restart Home Assistant.
+
+*(Fallback: open **HACS -> ⋮ -> Custom repositories**, add
+`https://github.com/fabioscarparo/HomeAssistant-AcegasApsAmga` with type
+**Integration**, then search for **AcegasApsAmga**, download and restart.)*
 
 ### Manual installation
 
@@ -85,9 +88,10 @@ your Home Assistant configuration, then restart Home Assistant.
 
 ## Setup
 
-1. Go to **Settings -> Devices & services -> Add integration** and search for
-   **AcegasApsAmga**, or open
-   [this link](https://my.home-assistant.io/redirect/config_flow_start/?domain=acegasapsamga).
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=acegasapsamga)
+
+1. Add **AcegasApsAmga** with the button above, or go to **Settings -> Devices &
+   services -> Add integration** and search for **AcegasApsAmga**.
 2. Enter the email and password of your **Servizi Online** account.
 3. If the account has more than one supported contract, choose the ones to
    follow.
@@ -112,11 +116,12 @@ keeping previously imported statistics.
 
 ### Automatic configuration
 
-Run the **AcegasApsAmga: Configure Energy dashboard** action, from **Developer
-tools -> Actions** or with
-[this link](https://my.home-assistant.io/redirect/developer_call_service/?service=acegasapsamga.configura_energy_dashboard).
-It adds water, gas and electricity grid sources for every configured contract,
-and never changes or duplicates sources that already exist.
+[![Open your Home Assistant instance and show your service developer tools with a specific service selected.](https://my.home-assistant.io/badges/developer_call_service.svg)](https://my.home-assistant.io/redirect/developer_call_service/?service=acegasapsamga.configura_energy_dashboard)
+
+Run the **AcegasApsAmga: Configure Energy dashboard** action with the button
+above, or from **Developer tools -> Actions**. It adds water, gas and
+electricity grid sources for every configured contract, and never changes or
+duplicates sources that already exist.
 
 ### Manual configuration
 
